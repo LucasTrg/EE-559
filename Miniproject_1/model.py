@@ -20,47 +20,101 @@ class Model():
         input_channel_number = 3
 
         self.enc_conv0 = nn.Conv2d(in_channels=input_channel_number, out_channels=48, kernel_size=3)
+        self.relu0 = nn.LeakyReLU(negative_slope=0.1)
 
         self.enc_conv1 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3)
         self.pool1 = nn.MaxPool2d(kernel_size=2)
+        self.relu1 = nn.LeakyReLU(negative_slope=0.1)
 
         self.enc_conv2 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3)
         self.pool2 = nn.MaxPool2d(kernel_size=2)
+        self.relu2 = nn.LeakyReLU(negative_slope=0.1)
 
         self.enc_conv3 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3)
         self.pool3 = nn.MaxPool2d(kernel_size=2)
+        self.relu3= nn.LeakyReLU(negative_slope=0.1)
 
         self.enc_conv4 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3)
         self.pool4 = nn.MaxPool2d(kernel_size=2)
+        self.relu4 = nn.LeakyReLU(negative_slope=0.1)
 
         self.enc_conv5 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3)
         self.pool5 = nn.MaxPool2d(kernel_size=2)
+        self.relu5 = nn.LeakyReLU(negative_slope=0.1)
 
         self.enc_conv6 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3)
+        self.relu6 = nn.LeakyReLU(negative_slope=0.1)
 
         self.upsample5 = nn.Upsample(size=2, mode="nearest")
         
-        self.dec_conv5A = nn.Conv2d(in_channels=96, out_channels=48, kernel_size=3)
-        self.dec_conv5B = nn.Conv2d(in_channels=96, out_channels=48, kernel_size=3)
+        self.dec_conv5A = nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3)
+        self.relu5A = nn.LeakyReLU(negative_slope=0.1)
+        self.dec_conv5B = nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3)
+        self.relu5B = nn.LeakyReLU(negative_slope=0.1)
 
         self.upsample4 = nn.Upsample(size=2, mode="nearest")
 
-        self.dec_conv4A = nn.Conv2d(in_channels=144, out_channels=48, kernel_size=3)
-        self.dec_conv4B = nn.Conv2d(in_channels=144, out_channels=48, kernel_size=3)
+        self.dec_conv4A = nn.Conv2d(in_channels=144, out_channels=96, kernel_size=3)
+        self.relu4A = nn.LeakyReLU(negative_slope=0.1)
+        self.dec_conv4B = nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3)
+        self.relu4B = nn.LeakyReLU(negative_slope=0.1)
 
         self.upsample3 = nn.Upsample(size=2, mode="nearest")
 
-        self.dec_conv4A = nn.Conv2d(in_channels=1, out_channels=48, kernel_size=3)
-        self.dec_conv4B = nn.Conv2d(in_channels=144, out_channels=48, kernel_size=3)
+        self.dec_conv3A = nn.Conv2d(in_channels=144, out_channels=96, kernel_size=3)
+        self.relu3A = nn.LeakyReLU(negative_slope=0.1)
+        self.dec_conv3B = nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3)
+        self.relu3B = nn.LeakyReLU(negative_slope=0.1)
 
+        self.upsample2 = nn.Upsample(size=2, mode="nearest")
+
+        self.dec_conv2A = nn.Conv2d(in_channels=144, out_channels=96, kernel_size=3)
+        self.relu2A = nn.LeakyReLU(negative_slope=0.1)
+        self.dec_conv2B = nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3)
+        self.relu2B = nn.LeakyReLU(negative_slope=0.1)
+
+        self.upsample1 = nn.Upsample(size=2, mode="nearest")
+
+        self.dec_conv1A = nn.Conv2d(in_channels=96+input_channel_number, out_channels=64, kernel_size=3)
+        self.relu1A = nn.LeakyReLU(negative_slope=0.1)
+        self.dec_conv1B = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3)
+        self.relu1B = nn.LeakyReLU(negative_slope=0.1)
+        self.dec_conv1C = nn.Conv2d(in_channels=32, out_channels=input_channel_number, kernel_size=3)
 
         #Yada yada yada
 
     def forward(self, features):
-        activation = self.conv1(features)
-        activation = torch.relu(activation)
-        #Yayaya
-        return activation
+        stack = [features]
+  
+        ###ENCODING###
+        encoding = self.relu0(self.enc_conv0(features), negative_slope=0.1)
+        encoding = self.relu1(self.enc_conv1(encoding), negative_slope=0.1)
+        encoding = self.pool1(encoding)
+
+        stack.append(encoding)
+
+        encoding = self.pool2(self.relu2(self.enc_conv2), negative_slope=0.1)
+        
+        stack.append(encoding)
+
+        encoding = self.pool3(self.relu3(self.enc_conv3), negative_slope=0.1)
+        
+        stack.append(encoding)
+
+        encoding = self.pool4(self.relu4(self.enc_conv4), negative_slope=0.1)
+
+        stack.append(encoding)
+
+        encoding = self.pool5(self.relu5(self.enc_conv5), negative_slope=0.1)
+
+        encoding = self.relu6(self.enc_conv6, negative_slope=0.1)
+
+        ####DECODING###
+        decoding = self.upsample5
+
+
+
+        return decoding
 
 
     def load_pretrained_model(self)-> None:
