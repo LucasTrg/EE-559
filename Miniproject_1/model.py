@@ -93,26 +93,46 @@ class Model():
 
         stack.append(encoding)
 
-        encoding = self.pool2(self.relu2(self.enc_conv2), negative_slope=0.1)
+        encoding = self.pool2(self.relu2(self.enc_conv2(encoding)), negative_slope=0.1)
         
         stack.append(encoding)
 
-        encoding = self.pool3(self.relu3(self.enc_conv3), negative_slope=0.1)
+        encoding = self.pool3(self.relu3(self.enc_conv3(encoding)), negative_slope=0.1)
         
         stack.append(encoding)
 
-        encoding = self.pool4(self.relu4(self.enc_conv4), negative_slope=0.1)
+        encoding = self.pool4(self.relu4(self.enc_conv4(encoding)), negative_slope=0.1)
 
         stack.append(encoding)
 
-        encoding = self.pool5(self.relu5(self.enc_conv5), negative_slope=0.1)
+        encoding = self.pool5(self.relu5(self.enc_conv5(encoding)), negative_slope=0.1)
 
-        encoding = self.relu6(self.enc_conv6, negative_slope=0.1)
+        encoding = self.relu6(self.enc_conv6(encoding), negative_slope=0.1)
 
         ####DECODING###
-        decoding = self.upsample5
+        decoding = self.upsample5(encoding)
+
+        decoding=torch.cat((decoding, stack.pop()), axis=1)
+        decoding=self.relu5A(self.dec_conv5A(decoding))        
+        decoding=self.relu5B(self.dec_conv5B(decoding))        
+
+        decoding=torch.cat((decoding, stack.pop()), axis=1)
+        decoding=self.relu4A(self.dec_conv4A(decoding))        
+        decoding=self.relu4B(self.dec_conv4B(decoding))   
 
 
+        decoding=torch.cat((decoding, stack.pop()), axis=1)
+        decoding=self.relu3A(self.dec_conv3A(decoding))        
+        decoding=self.relu3B(self.dec_conv3B(decoding)) 
+
+        decoding=torch.cat((decoding, stack.pop()), axis=1)
+        decoding=self.relu2A(self.dec_conv2A(decoding))        
+        decoding=self.relu2B(self.dec_conv2B(decoding))    
+
+        decoding=torch.cat((decoding, stack.pop()), axis=1)
+        decoding=self.relu1A(self.dec_conv1A(decoding))        
+        decoding=self.relu1B(self.dec_conv1B(decoding)) 
+        decoding=self.dec_conv1C(decoding)
 
         return decoding
 
