@@ -5,16 +5,10 @@ from torch import nn
 import utils
 
 
-class Model():
+class AutoEncoder(nn.Module):
     def __init__(self, **kwargs) -> None:
-
         super().__init__()
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        self.optimizer=torch.optim.Adam(model.parameters(), lr=1e-3)
-
-        self.criterion = nn.MSELoss()
         ##Define all layers here 
 
         input_channel_number = 3
@@ -81,8 +75,6 @@ class Model():
         self.relu1B = nn.LeakyReLU(negative_slope=0.1)
         self.dec_conv1C = nn.Conv2d(in_channels=32, out_channels=input_channel_number, kernel_size=3)
 
-        #Yada yada yada
-
     def forward(self, features):
         stack = [features]
   
@@ -137,6 +129,24 @@ class Model():
         return decoding
 
 
+
+
+class Model():
+    def __init__(self, **kwargs) -> None:
+
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.autoencoder = AutoEncoder(kwargs).to(device)
+        self.criterion = nn.MSELoss()
+        self.optimizer=torch.optim.Adam(self.autoencoder.parameters(),lr=1e-3)
+        
+        ##Define all layers here 
+
+
+        
+
+    
+
     def load_pretrained_model(self)-> None:
         pass
 
@@ -163,7 +173,7 @@ class Model():
         
 
     def predict(self, test_input)-> torch.Tensor:
-        return self(test_input)
+        return AutoEncoder(test_input)
 
 if __name__ == "__main__":
     device = torch.device ( "cuda" if torch.cuda.is_available() else "cpu" )
@@ -171,11 +181,9 @@ if __name__ == "__main__":
     
     train_input_dataset , train_target_dataset = torch.load ("train_data.pkl")
     train_input_loader = torch.utils.data.DataLoader(
-    train_input_dataset, batch_size=128, shuffle=True, num_workers=4, pin_memory=True
-)
+    train_input_dataset, batch_size=128, shuffle=True, num_workers=4, pin_memory=True)
     train_target_loader = torch.utils.data.DataLoader(
-    train_target_dataset, batch_size=128, shuffle=True, num_workers=4, pin_memory=True
-)
+    train_target_dataset, batch_size=128, shuffle=True, num_workers=4, pin_memory=True)
 
-    model = Model(1).to(device)
+    model = Model()
     model.train()
