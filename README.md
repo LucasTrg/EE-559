@@ -1,2 +1,4 @@
 # EE-559
-Deep Learnign Master Course @ EPFL
+Deep Learning Master Course @ EPFL
+
+Based on https://arxiv.org/pdf/1803.04189.pdf
