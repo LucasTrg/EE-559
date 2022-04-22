@@ -152,8 +152,7 @@ class Model():
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.autoencoder = AutoEncoder(*kwargs).to(device)
         self.criterion = nn.MSELoss()
-        self.optimizer=torch.optim.Adam(self.autoencoder.parameters(),lr=1e-3)
-        
+        self.optimizer=torch.optim.Adam(self.autoencoder.parameters(),lr=1e-4)
         ##Define all layers here 
 
 
@@ -161,10 +160,13 @@ class Model():
 
     
 
-    def load_pretrained_model(self)-> None:
-        pass
+    def load_pretrained_model(self, path,**kwargs)-> None:
+        model = AutoEncoder(*kwargs)
+        model.load_state_dict(torch.load(path))
+        model.eval()
 
     def train(self, train_input, train_target, num_epochs)-> None:
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.optimizer,T_0=11)
 
         for epoch in range(num_epochs):
             loss = 0 
@@ -182,25 +184,29 @@ class Model():
                 train_loss.backward()
 
                 self.optimizer.step()
+                self.scheduler.step()
 
                 loss += train_loss.item()
 
             loss = loss /len(train_target)
             print("epoch : {}/{}, loss = {:.6f}, SNR = {:.3f}".format(epoch + 1, num_epochs, loss, utils.psnr(outputs, batch_target)))
         
+        torch.save(self.autoencoder.state_dict(), "V1.pt")
 
     def predict(self, test_input)-> torch.Tensor:
         return AutoEncoder(test_input)
 
 if __name__ == "__main__":
+    batch_size=128
+
     device = torch.device ( "cuda" if torch.cuda.is_available() else "cpu" )
     
     print("PyTorch version : ",torch.__version__)
     train_input_dataset , train_target_dataset = torch.load ("train_data.pkl")
     train_input_loader = torch.utils.data.DataLoader(
-    train_input_dataset, batch_size=128, shuffle=True, num_workers=4, pin_memory=True)
+        train_input_dataset/256, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
     train_target_loader = torch.utils.data.DataLoader(
-    train_target_dataset, batch_size=128, shuffle=True, num_workers=4, pin_memory=True)
+        train_target_dataset/256, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
     model = Model()
     model.train(train_input_loader, train_target_loader, 50)
