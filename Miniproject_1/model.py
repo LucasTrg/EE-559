@@ -5,6 +5,61 @@ from torch import nn
 import utils
 
 
+
+
+class MiniEncoder(nn.Module):
+    def __init__(self, **kwargs) -> None:
+        super().__init__()
+
+        input_channel_number = 3
+        self.enc_conv0 = nn.Conv2d(in_channels=input_channel_number, out_channels=48, kernel_size=3, padding="same", stride=1)
+        self.relu0 = nn.LeakyReLU(negative_slope=0.1)
+        
+        self.enc_conv1 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3, padding="same",stride=1)
+        self.pool1 = nn.MaxPool2d(kernel_size=2)
+        self.relu1 = nn.LeakyReLU(negative_slope=0.1)
+
+        self.enc_conv2 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3, padding="same")
+        self.relu2 = nn.LeakyReLU(negative_slope=0.1)
+
+
+        self.upsample1 = nn.Upsample(scale_factor=2, mode="nearest")
+
+        self.dec_conv1A = nn.Conv2d(in_channels=48+input_channel_number, out_channels=64, kernel_size=3, padding="same")
+        self.relu1A = nn.LeakyReLU(negative_slope=0.1)
+
+        self.dec_conv1B = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3, padding="same")
+        self.relu1B = nn.LeakyReLU(negative_slope=0.1)
+
+        self.dec_conv1C = nn.Conv2d(in_channels=32, out_channels=input_channel_number, kernel_size=3, padding="same")
+
+
+    def forward(self, features):
+        stack = [features]
+        #print("features", features.shape)
+
+        ###ENCODING###
+        encoding = self.relu0(self.enc_conv0(features))
+        encoding = self.relu1(self.enc_conv1(encoding))
+        encoding = self.pool1(encoding)
+        #print("After conv 1", encoding.shape)
+
+        encoding = self.relu2(self.enc_conv2(encoding))
+        #print("After conv 2", encoding.shape)
+
+        decoding =  self.upsample1(encoding)
+        #print("After upsample 1", decoding.shape)
+
+        decoding=torch.cat((decoding, stack.pop()), axis=1)
+        #print("After cat 1", decoding.shape)
+
+        decoding=self.relu1A(self.dec_conv1A(decoding))        
+        decoding=self.relu1B(self.dec_conv1B(decoding)) 
+        decoding=self.dec_conv1C(decoding)
+
+        return decoding
+
+
 class AutoEncoder(nn.Module):
     def __init__(self, **kwargs) -> None:
         super().__init__()
@@ -150,9 +205,9 @@ class Model():
 
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.autoencoder = AutoEncoder(*kwargs).to(device)
+        self.autoencoder = MiniEncoder(*kwargs).to(self.device)
         self.criterion = nn.MSELoss()
-        self.optimizer=torch.optim.Adam(self.autoencoder.parameters(),lr=1e-4)
+        self.optimizer=torch.optim.Adam(self.autoencoder.parameters(),lr=1e-3)
         ##Define all layers here 
 
 
@@ -161,7 +216,7 @@ class Model():
     
 
     def load_pretrained_model(self, path,**kwargs)-> None:
-        model = AutoEncoder(*kwargs)
+        model = MiniEncoder(*kwargs)
         model.load_state_dict(torch.load(path))
         model.eval()
 
@@ -189,24 +244,24 @@ class Model():
                 loss += train_loss.item()
 
             loss = loss /len(train_target)
-            print("epoch : {}/{}, loss = {:.6f}, SNR = {:.3f}".format(epoch + 1, num_epochs, loss, utils.psnr(outputs, batch_target)))
-        
-        torch.save(self.autoencoder.state_dict(), "V1.pt")
+            print("epoch : {}/{}, loss = {:.6f}, SNR = {:.3f}, lr={}".format(epoch + 1, num_epochs, loss, utils.psnr(outputs, batch_target), self.optimizer.param_groups[0]['lr']))
+            if (epoch+1)%10==0:
+                print("Saving checkpoint for the model")
+                torch.save(self.autoencoder.state_dict(), "V3.pt")
 
     def predict(self, test_input)-> torch.Tensor:
-        return AutoEncoder(test_input)
+        return self.autoencoder(test_input)
 
 if __name__ == "__main__":
-    batch_size=128
+    batch_size=32
 
     device = torch.device ( "cuda" if torch.cuda.is_available() else "cpu" )
     
     print("PyTorch version : ",torch.__version__)
     train_input_dataset , train_target_dataset = torch.load ("train_data.pkl")
     train_input_loader = torch.utils.data.DataLoader(
-        train_input_dataset/256, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+        train_input_dataset/255, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
     train_target_loader = torch.utils.data.DataLoader(
-        train_target_dataset/256, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-
+        train_target_dataset/255, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
     model = Model()
-    model.train(train_input_loader, train_target_loader, 50)
+    model.train(train_input_loader, train_target_loader, 100)
