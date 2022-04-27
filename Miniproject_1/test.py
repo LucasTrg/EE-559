@@ -9,7 +9,7 @@ if __name__=="__main__":
     matplotlib.use('TkAgg')
     Device = torch.device ( "cuda" if torch.cuda.is_available() else "cpu" ) 
     model = model.Model()
-    model.load_pretrained_model("V3.pt")
+    model.load_pretrained_model("V5-big.pt")
     batch_size=128
     test_input_dataset , test_target_dataset = torch.load ("val_data.pkl")
     test_input_loader = torch.utils.data.DataLoader(
@@ -21,25 +21,33 @@ if __name__=="__main__":
 
 
     SNR=0
+    cSNR=0
     i=0
     for input, target in zip(test_input_loader, test_target_loader):
         input=input.to(Device).float()
         target=target.to(Device).float()
+        outputs = model.predict(input)
 
-        #for (img1,img2) in zip (input, target):
+        cSNR+=utils.psnr(outputs, target)
+        i+=1
+           #cSNR+=utils.psnr(model.predict(img1)[0], img2)
 
-        #    SNR+=utils.psnr(img1, img2)
-        #    i+=1
-        plt.subplot(131)
-        plt.imshow(  input[0].cpu().detach().permute(1, 2, 0)  )
-        plt.subplot(132)
-        print(model.predict(input).shape)
-        print( model.predict(input)[0])
-        plt.imshow(model.predict(input)[0].cpu().detach().permute(1, 2, 0))
-        plt.subplot(133)
-        plt.imshow(  target[0].cpu().detach().permute(1, 2, 0)  )
-        plt.show()
-    #print("Average SNR :", SNR/i)
+
+
+
+        # plt.subplot(131)
+        # plt.imshow(  input[0].cpu().detach().permute(1, 2, 0)  )
+        # plt.subplot(132)
+        # print(model.predict(input).shape)
+        # print( model.predict(input)[0])
+        # plt.imshow(model.predict(input)[0].cpu().detach().permute(1, 2, 0))
+        # plt.subplot(133)
+        # plt.imshow( target[0].cpu().detach().permute(1, 2, 0)  )
+        # plt.show()
+    
+    print("Average original SNR :", SNR)
+    print("Average compensated SNR :", cSNR/i)
+
 
 
 

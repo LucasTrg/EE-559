@@ -5,6 +5,18 @@ from torch import nn
 import utils
 
 
+class VeryMiniEncoder(nn.Module):
+    def __init__(self, **kwargs) -> None:
+        super().__init__()
+
+        input_channel_number = 3
+        self.enc_conv0 = nn.Conv2d(in_channels=input_channel_number, out_channels=16, kernel_size=3, padding="same", stride=1)
+        self.relu0 = nn.LeakyReLU(negative_slope=0.01)
+        self.enc_conv1 = nn.Conv2d(in_channels=16, out_channels=3, kernel_size=3, padding="same",stride=1)
+        self.sigmoid = nn.Sigmoid()
+    def forward(self, features):
+        encoding=self.relu0(self.enc_conv0(features))
+        return self.sigmoid(self.enc_conv1(encoding))
 
 
 class MiniEncoder(nn.Module):
@@ -32,7 +44,6 @@ class MiniEncoder(nn.Module):
         self.relu1B = nn.LeakyReLU(negative_slope=0.1)
 
         self.dec_conv1C = nn.Conv2d(in_channels=32, out_channels=input_channel_number, kernel_size=3, padding="same")
-
 
     def forward(self, features):
         stack = [features]
@@ -129,6 +140,9 @@ class AutoEncoder(nn.Module):
         self.dec_conv1B = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3, padding="same")
         self.relu1B = nn.LeakyReLU(negative_slope=0.1)
         self.dec_conv1C = nn.Conv2d(in_channels=32, out_channels=input_channel_number, kernel_size=3, padding="same")
+        self.linear_act = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=1)
+
+        
 
     def forward(self, features):
         stack = [features]
@@ -194,6 +208,7 @@ class AutoEncoder(nn.Module):
         decoding=self.relu1A(self.dec_conv1A(decoding))        
         decoding=self.relu1B(self.dec_conv1B(decoding)) 
         decoding=self.dec_conv1C(decoding)
+        decoding=self.linear_act(decoding)
 
         return decoding
 
@@ -205,7 +220,7 @@ class Model():
 
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.autoencoder = MiniEncoder(*kwargs).to(self.device)
+        self.autoencoder = AutoEncoder(*kwargs).to(self.device)
         self.criterion = nn.MSELoss()
         self.optimizer=torch.optim.Adam(self.autoencoder.parameters(),lr=1e-3)
         ##Define all layers here 
@@ -216,19 +231,21 @@ class Model():
     
 
     def load_pretrained_model(self, path,**kwargs)-> None:
-        model = MiniEncoder(*kwargs)
+        model = AutoEncoder(*kwargs)
         model.load_state_dict(torch.load(path))
-        model.eval()
+        model.eval().to(self.device)
+        self.autoencoder=model
 
     def train(self, train_input, train_target, num_epochs)-> None:
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.optimizer,T_0=11)
 
         for epoch in range(num_epochs):
             loss = 0 
+            SNR = 0
             for batch_features, batch_target in zip(train_input, train_target):
                 #print(batch_features.shape)
-                batch_features = batch_features.to(self.device).float()
-                batch_target = batch_target.to(self.device).float()
+                batch_features = batch_features.float().to(self.device)
+                batch_target = batch_target.float().to(self.device)
 
                 self.optimizer.zero_grad()
 
@@ -242,12 +259,13 @@ class Model():
                 self.scheduler.step()
 
                 loss += train_loss.item()
-
+                SNR += utils.psnr(outputs, batch_target)
             loss = loss /len(train_target)
-            print("epoch : {}/{}, loss = {:.6f}, SNR = {:.3f}, lr={}".format(epoch + 1, num_epochs, loss, utils.psnr(outputs, batch_target), self.optimizer.param_groups[0]['lr']))
+            SNR = SNR / len(train_target)
+            print("epoch : {}/{}, loss = {:.6f}, SNR = {:.3f}, lr={}".format(epoch + 1, num_epochs, loss, SNR, self.optimizer.param_groups[0]['lr']))
             if (epoch+1)%10==0:
                 print("Saving checkpoint for the model")
-                torch.save(self.autoencoder.state_dict(), "V3.pt")
+                torch.save(self.autoencoder.state_dict(), "V5-big.pt")
 
     def predict(self, test_input)-> torch.Tensor:
         return self.autoencoder(test_input)
