@@ -1,3 +1,4 @@
+from ctypes.wintypes import DWORD
 from torch import empty, cat, arange
 from torch.nn.functional import fold, unfold
 import math
@@ -32,17 +33,18 @@ class Convolution(Module):
  
     def forward(self, input):
         self.input = input
-        input_padded = empty(input.shape[0], input.shape[1], input.shape[2]+2*self.padding[0], input.shape[3] + 2*self.padding[1])
-        input_padded[:,:, self.padding[0]:-self.padding[0], self.padding[1]:-self.padding[1]]
-        self.unfolded = unfold(input_padded, kernel_size = self.kernel_size)
+        self.unfolded = unfold(input, kernel_size = self.kernel_size, padding = self.padding)
         wxb = self.w.view(self.out_channels, -1) @ self.unfolded + self.b.view(1,-1,1)
         return wxb.view(input.shape[0], self.out_channels, input.shape[2] + 2*self.padding[0] - self.kernel_size[0] + 1 , input.shape[3] + 2*self.padding[1] - self.kernel_size[1]+ 1)
 
     def backward(self, gradwrtoutput):
-        #convolution between gradwrtoutput and self.input yet to be implemented
+        grad_reshape = gradwrtoutput.reshape(gradwrtoutput.shape[0],self.out_channels,self.unfolded.shape[2]).transpose(1,2)
+        dw = (self.unfolded@ grad_reshape).sum(0).t().view(self.dw.shape)
+        self.dw.add(dw)
         if(self.bias):
-            self.db.add(gradwrtoutput.sum(0))
-        return gradwrtoutput @ self.w.view(self.out_channels,-1).t()
+            self.db.add(gradwrtoutput.sum(0,2,3))
+        grad = (grad_reshape@self.w.view(self.out_channels, -1)).transpose(1,2)
+        return fold(grad, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding)
 
     def param(self):
         return [(self.w, self.dw), (self.b, self.db)]
@@ -130,6 +132,5 @@ loss = criterion.forward(output, target_tensor)
 
 loss_grad = criterion.backward()
 model.backward(loss_grad)
-
-optimizer = SGDOptimizer()
+optimizer = SGDOptimizer(model.param())
 optimizer.step()
