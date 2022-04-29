@@ -39,12 +39,12 @@ class Convolution(Module):
 
     def backward(self, gradwrtoutput):
         grad_reshape = gradwrtoutput.reshape(gradwrtoutput.shape[0],self.out_channels,self.unfolded.shape[2]).transpose(1,2)
-        dw = (self.unfolded@ grad_reshape).sum(0).t().view(self.dw.shape)
+        dw = (self.unfolded @ grad_reshape).sum(0).t().view(self.dw.shape)
         self.dw.add(dw)
         if(self.bias):
             self.db.add(gradwrtoutput.sum(0,2,3))
-        grad = (grad_reshape@self.w.view(self.out_channels, -1)).transpose(1,2)
-        return fold(grad, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding)
+        grad_reshape = (grad_reshape@self.w.view(self.out_channels, -1)).transpose(1,2)
+        return fold(grad_reshape, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding)
 
     def param(self):
         return [(self.w, self.dw), (self.b, self.db)]
