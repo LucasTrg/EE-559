@@ -177,7 +177,12 @@ class AutoEncoder(nn.Module):
         ####DECODING###
         decoding = self.upsample5(encoding)
 
+
+        #print("DECODING SHAPE ", decoding.shape)
+        #print("STACK POP SHAPE", stack[-1].shape)
         decoding=torch.cat((decoding, stack.pop()), axis=1)
+
+
         decoding=self.relu5A(self.dec_conv5A(decoding))        
         decoding=self.relu5B(self.dec_conv5B(decoding))        
         #print("After dec 5", decoding.shape)
@@ -220,9 +225,9 @@ class Model():
 
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.autoencoder = AutoEncoder(*kwargs).to(self.device)
+        self.autoencoder = AutoEncoder(**kwargs).to(self.device)
         self.criterion = nn.MSELoss()
-        self.optimizer=torch.optim.Adam(self.autoencoder.parameters(),lr=1e-3)
+        self.optimizer=torch.optim.Adam(self.autoencoder.parameters(),lr=kwargs.get("lr", 1e-3))
         ##Define all layers here 
 
 
@@ -267,8 +272,27 @@ class Model():
                 print("Saving checkpoint for the model")
                 torch.save(self.autoencoder.state_dict(), "V5-big.pt")
 
+
+
+    def measureSNR(self, test_input, test_target):
+        SNR=0
+        torch.cuda.empty_cache() 
+        with torch.no_grad():
+            for batch_test_input, batch_test_target in zip(test_input,test_target):
+                batch_test_input = batch_test_input.float().to(self.device)
+                output=self.autoencoder(batch_test_input)
+                del batch_test_input
+                batch_test_target = batch_test_target.float().to(self.device)
+                SNR+=utils.psnr(output, batch_test_target)
+            return SNR/len(test_input)
+
+    ### Add support to dataloader
     def predict(self, test_input)-> torch.Tensor:
-        return self.autoencoder(test_input)
+        return self.autoencoder(test_input) 
+
+
+
+
 
 if __name__ == "__main__":
     batch_size=32

@@ -34,16 +34,6 @@ if __name__=="__main__":
 
 
 
-
-        # plt.subplot(131)
-        # plt.imshow(  input[0].cpu().detach().permute(1, 2, 0)  )
-        # plt.subplot(132)
-        # print(model.predict(input).shape)
-        # print( model.predict(input)[0])
-        # plt.imshow(model.predict(input)[0].cpu().detach().permute(1, 2, 0))
-        # plt.subplot(133)
-        # plt.imshow( target[0].cpu().detach().permute(1, 2, 0)  )
-        # plt.show()
     
     print("Average original SNR :", SNR)
     print("Average compensated SNR :", cSNR/i)
