@@ -14,40 +14,86 @@ class Module(object):
         return []
 
 class Convolution(Module):
-    def __init__(self, in_channels, out_channels, kernel_size = (3,3), bias = False, padding = (1,1)):
+    def __init__(self, in_channels, out_channels, kernel_size = (3,3), bias = True, padding = (0,0), stride = (1,1)):
         super().__init__()
-        self.kernel_size = kernel_size
-        self.bias = bias
-        self.padding = padding
-        self.in_channels = in_channels
-        self.out_channels = out_channels
+        self.kernel_size = kernel_size; self.bias = bias; self.padding = padding; self.stride = stride
+        self.in_channels = in_channels; self.out_channels = out_channels
         k = 1/(in_channels*kernel_size[0]*kernel_size[1])
         self.w = empty(out_channels, in_channels, kernel_size[0], kernel_size[1]).uniform_(-math.sqrt(k), math.sqrt(k))
         self.dw = empty(self.w.shape).zero_()
         if(bias):
             self.b = empty(out_channels).uniform_(-math.sqrt(k), math.sqrt(k))
-        else:
-            self.b = empty(out_channels).zero_()
-
-        self.db = empty(self.b.shape).zero_()
+            self.db = empty(self.b.shape).zero_()
  
     def forward(self, input):
         self.input = input
-        self.unfolded = unfold(input, kernel_size = self.kernel_size, padding = self.padding)
-        wxb = self.w.view(self.out_channels, -1) @ self.unfolded + self.b.view(1,-1,1)
-        return wxb.view(input.shape[0], self.out_channels, input.shape[2] + 2*self.padding[0] - self.kernel_size[0] + 1 , input.shape[3] + 2*self.padding[1] - self.kernel_size[1]+ 1)
+        self.unfolded = unfold(input, kernel_size = self.kernel_size, padding = self.padding, stride = self.stride)
+        wxb = self.w.view(self.out_channels, -1) @ self.unfolded
+        if(self.bias):
+            wxb.add(self.b.view(1,-1,1))
+
+        outDim2 = (input.shape[2] + 2*self.padding[0] - self.kernel_size[0])//self.stride[0] + 1
+        outDim3 = (input.shape[3] + 2*self.padding[1] - self.kernel_size[1])//self.stride[1] + 1
+        return wxb.view(input.shape[0], self.out_channels, outDim2 , outDim3)
 
     def backward(self, gradwrtoutput):
         grad_reshape = gradwrtoutput.reshape(gradwrtoutput.shape[0],self.out_channels,self.unfolded.shape[2]).transpose(1,2)
-        dw = (self.unfolded @ grad_reshape).sum(0).t().view(self.dw.shape)
-        self.dw.add(dw)
+        self.dw = (self.unfolded @ grad_reshape).sum(0).t().view(self.dw.shape)
         if(self.bias):
-            self.db.add(gradwrtoutput.sum(0,2,3))
-        grad_reshape = (grad_reshape@self.w.view(self.out_channels, -1)).transpose(1,2)
-        return fold(grad_reshape, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding)
+            self.db = gradwrtoutput.sum((0,2,3))
+        gw = (grad_reshape@self.w.view(self.out_channels, -1)).transpose(1,2)
+        return fold(gw, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
 
     def param(self):
-        return [(self.w, self.dw), (self.b, self.db)]
+        if(self.bias):
+            return [(self.w, self.dw), (self.b, self.db)]
+        else:
+            return [(self.w, self.dw)]
+            
+class TransposedConvolution(Module):
+    def __init__(self, in_channels, out_channels, kernel_size = (3,3), stride = (1,1), padding = (0,0), bias = True):
+        super().__init__()
+        self.kernel_size = kernel_size; self.bias = bias 
+        self.pad = padding
+        self.padding = (kernel_size[0] - padding[0] -1, kernel_size[1] - padding[1] -1)
+        self.stride = stride
+        self.in_channels = in_channels; self.out_channels = out_channels
+        k = 1/(in_channels*kernel_size[0]*kernel_size[1])
+        self.w = empty(out_channels, in_channels, kernel_size[0], kernel_size[1]).uniform_(-math.sqrt(k), math.sqrt(k))
+        self.dw = empty(self.w.shape).zero_()
+        if(bias):
+            self.b = empty(out_channels).uniform_(-math.sqrt(k), math.sqrt(k))
+            self.db = empty(self.b.shape).zero_()
+ 
+    def forward(self, input):
+        self.input = input
+        zeroInsertDim2 = self.stride[0]*input.shape[2]-1 if(self.stride[0]>1)  else input.shape[2]
+        zeroInsertDim3 = self.stride[1]*input.shape[3]-1 if(self.stride[1]>1)  else input.shape[3]
+        inputZeroInserted = empty(input.shape[0], input.shape[1], zeroInsertDim3, zeroInsertDim2).zero_()
+        inputZeroInserted[:,:,::self.stride[0], ::self.stride[1]] = self.input
+        self.unfolded = unfold(inputZeroInserted, kernel_size = self.kernel_size, padding = self.padding)
+        wxb = self.w.view(self.out_channels, -1) @ self.unfolded
+        if(self.bias):
+            wxb.add(self.b.view(1,-1,1))
+
+        outDim2 = (input.shape[2]-1)*self.stride[0] - 2*self.pad[0] + self.kernel_size[0] 
+        outDim3 = (input.shape[3]-1)*self.stride[1]  - 2*self.pad[1] + self.kernel_size[1]
+        return wxb.view(input.shape[0], self.out_channels, outDim2 , outDim3)
+
+    def backward(self, gradwrtoutput):
+        grad_reshape = gradwrtoutput.reshape(gradwrtoutput.shape[0],self.out_channels,self.unfolded.shape[2]).transpose(1,2)
+        self.dw = (self.unfolded @ grad_reshape).sum(0).t().view(self.dw.shape)
+        if(self.bias):
+            self.db = gradwrtoutput.sum((0,2,3))
+        gw = (grad_reshape@self.w.view(self.out_channels, -1)).transpose(1,2)
+        return fold(gw, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding)
+
+    def param(self):
+        if(self.bias):
+            return [(self.w, self.dw), (self.b, self.db)]
+        else:
+            return [(self.w, self.dw)]
+
 
 class ReLu(Module):
     def forward (self, input):
@@ -104,10 +150,11 @@ class SGDOptimizer():
 
     def step(self):
         for param in self.param:
-            weight, grad = param
-            weight.add(-self.eta*grad)
+            val, grad = param
+            val.add(-self.eta*grad)
 
-model = Sequential([Convolution(3, 25), ReLu(), Convolution(25, 3)])
+model = Sequential([Convolution(3, 25), ReLu(), TransposedConvolution(25, 3)])
+criterion = MSELoss()
 
 n = 1000
 center = 0.5
@@ -124,11 +171,8 @@ log_losses = []
 mean_losses = 0
 
 output = model.forward(random_tensor)
-criterion = MSELoss()
             
 loss = criterion.forward(output, target_tensor)
-
-#model.zero_grad()
 
 loss_grad = criterion.backward()
 model.backward(loss_grad)
