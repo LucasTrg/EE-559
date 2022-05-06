@@ -54,8 +54,8 @@ class TransposedConvolution(Module):
     def __init__(self, in_channels, out_channels, kernel_size = (3,3), stride = (1,1), padding = (0,0), bias = True):
         super().__init__()
         self.kernel_size = kernel_size; self.bias = bias 
-        self.pad = padding
-        self.padding = (kernel_size[0] - padding[0] -1, kernel_size[1] - padding[1] -1)
+        self.padding = padding
+        self.real_padding = (kernel_size[0] - padding[0] -1, kernel_size[1] - padding[1] -1)
         self.stride = stride
         self.in_channels = in_channels; self.out_channels = out_channels
         k = 1/(in_channels*kernel_size[0]*kernel_size[1])
@@ -71,13 +71,13 @@ class TransposedConvolution(Module):
         zeroInsertDim3 = self.stride[1]*input.shape[3]-1 if(self.stride[1]>1)  else input.shape[3]
         inputZeroInserted = empty(input.shape[0], input.shape[1], zeroInsertDim3, zeroInsertDim2).zero_()
         inputZeroInserted[:,:,::self.stride[0], ::self.stride[1]] = self.input
-        self.unfolded = unfold(inputZeroInserted, kernel_size = self.kernel_size, padding = self.padding)
+        self.unfolded = unfold(inputZeroInserted, kernel_size = self.kernel_size, padding = self.real_padding)
         wxb = self.w.view(self.out_channels, -1) @ self.unfolded
         if(self.bias):
             wxb.add(self.b.view(1,-1,1))
 
-        outDim2 = (input.shape[2]-1)*self.stride[0] - 2*self.pad[0] + self.kernel_size[0] 
-        outDim3 = (input.shape[3]-1)*self.stride[1]  - 2*self.pad[1] + self.kernel_size[1]
+        outDim2 = (input.shape[2]-1)*self.stride[0] - 2*self.padding[0] + self.kernel_size[0] 
+        outDim3 = (input.shape[3]-1)*self.stride[1]  - 2*self.padding[1] + self.kernel_size[1]
         return wxb.view(input.shape[0], self.out_channels, outDim2 , outDim3)
 
     def backward(self, gradwrtoutput):
@@ -86,7 +86,7 @@ class TransposedConvolution(Module):
         if(self.bias):
             self.db = gradwrtoutput.sum((0,2,3))
         gw = (grad_reshape@self.w.view(self.out_channels, -1)).transpose(1,2)
-        return fold(gw, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding)
+        return fold(gw, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.real_padding)
 
     def param(self):
         if(self.bias):
@@ -112,7 +112,7 @@ class Sigmoid(Module):
         return 1/(1+(-input).exp_())
 
     def backward(self, gradwrtoutput):
-        sigma = 1/(1+(-input).exp_())
+        sigma = 1/(1+(-self.input).exp_())
         dsigma = sigma*(1-sigma)
         return dsigma * gradwrtoutput
 
@@ -153,7 +153,7 @@ class SGDOptimizer():
             val, grad = param
             val.add(-self.eta*grad)
 
-model = Sequential([Convolution(3, 25), ReLu(), TransposedConvolution(25, 3)])
+model = Sequential([Convolution(3, 25), ReLu(), TransposedConvolution(25, 3), Sigmoid()])
 criterion = MSELoss()
 
 n = 1000
