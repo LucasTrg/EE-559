@@ -293,7 +293,6 @@ class Model():
 
 
 
-
 if __name__ == "__main__":
     batch_size=32
 

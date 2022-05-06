@@ -72,8 +72,8 @@ def grid_search(noisy_ds_1, noisy_ds_2, **kwargs):
         print(combination)
         results[str(combination)] = k_fold_CV(noisy_ds_1, noisy_ds_2, k =4, **combination)
     
-    f = open("gridsearch-{}.txt".format(datetime.now()), "x") 
-    f.write(results)
+    f = open("gridsearch-{}.txt".format(datetime.datetime.now()), "x") 
+    f.write(str(results))
     return results
 
 
@@ -82,7 +82,11 @@ def grid_search(noisy_ds_1, noisy_ds_2, **kwargs):
 if __name__ == "__main__":
     batch_size=32
     
-    parameters = {"num_epoch" : [5,10,20,50], "lr":[4e-3, 1e-3, 1e-4], "model":["U-Net", "Mini_Encoder"]}
+    parameters = {
+        "num_epoch" : [5,10,20], 
+        "lr":[4e-3, 1e-3, 5e-4],
+        #"model":["U-Net", "Mini_Encoder"]
+    }
    
     device = torch.device ( "cuda" if torch.cuda.is_available() else "cpu" )
 
