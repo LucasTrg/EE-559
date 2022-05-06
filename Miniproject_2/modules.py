@@ -153,7 +153,7 @@ class SGDOptimizer():
             val, grad = param
             val.add(-self.eta*grad)
 
-model = Sequential([Convolution(3, 25), ReLu(), TransposedConvolution(25, 3), Sigmoid()])
+"""model = Sequential([Convolution(3, 25), ReLu(), TransposedConvolution(25, 3), Sigmoid()])
 criterion = MSELoss()
 
 n = 1000
@@ -167,8 +167,6 @@ temp_tensor = random_tensor.sub(center).pow(2)
 target_tensor = empty(temp_tensor.shape).zero_()
 target_tensor = target_tensor.where(temp_tensor < radius_sq, empty(temp_tensor.shape).zero_()+1)
 
-log_losses = []
-mean_losses = 0
 
 output = model.forward(random_tensor)
             
@@ -177,4 +175,4 @@ loss = criterion.forward(output, target_tensor)
 loss_grad = criterion.backward()
 model.backward(loss_grad)
 optimizer = SGDOptimizer(model.param())
-optimizer.step()
+optimizer.step()"""
