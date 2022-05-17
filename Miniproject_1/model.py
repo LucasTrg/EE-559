@@ -71,7 +71,7 @@ class MiniEncoder(nn.Module):
         return decoding
 
 
-class AutoEncoder(nn.Module):
+class UNet(nn.Module):
     def __init__(self, **kwargs) -> None:
         super().__init__()
 
@@ -221,13 +221,16 @@ class AutoEncoder(nn.Module):
 
 
 class Model():
-    def __init__(self, **kwargs) -> None:
+    def __init__(self,TBWriter=None, foldCount=None,**kwargs) -> None:
 
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.autoencoder = AutoEncoder(**kwargs).to(self.device)
-        self.criterion = nn.MSELoss()
+        
+        self.autoencoder = kwargs.get("model",UNet)(**kwargs).to(self.device)
+        self.criterion = kwargs.get("loss", nn.MSELoss)()
         self.optimizer=torch.optim.Adam(self.autoencoder.parameters(),lr=kwargs.get("lr", 1e-3))
+        self.TBWriter = TBWriter
+        self.foldCount=None
         ##Define all layers here 
 
 
@@ -236,13 +239,15 @@ class Model():
     
 
     def load_pretrained_model(self, path,**kwargs)-> None:
-        model = AutoEncoder(*kwargs)
+        model = UNet(*kwargs)
         model.load_state_dict(torch.load(path))
         model.eval().to(self.device)
         self.autoencoder=model
 
     def train(self, train_input, train_target, num_epochs)-> None:
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.optimizer,T_0=11)
+
+        
 
         for epoch in range(num_epochs):
             loss = 0 
@@ -267,11 +272,17 @@ class Model():
                 SNR += utils.psnr(outputs, batch_target)
             loss = loss /len(train_target)
             SNR = SNR / len(train_target)
+            if self.TBWriter is not None:
+                self.TBWriter("Loss/train", loss, num_epochs)
+                self.TBWriter("SNR/train", SNR, num_epochs)
+            
+            #self.TBWriter.add_scalars('runs_split   {}'.format(self.foldCount) if self.foldCount else "run", {'Loss/train': training_loss,
+            #                                'Loss/validation': validation_loss}, epoch+1)
             print("epoch : {}/{}, loss = {:.6f}, SNR = {:.3f}, lr={}".format(epoch + 1, num_epochs, loss, SNR, self.optimizer.param_groups[0]['lr']))
             if (epoch+1)%10==0:
                 print("Saving checkpoint for the model")
                 torch.save(self.autoencoder.state_dict(), "V5-big.pt")
-
+        return loss, SNR
 
 
     def measureSNR(self, test_input, test_target):

@@ -1,3 +1,5 @@
+from distutils.fancy_getopt import wrap_text
+from re import S
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
@@ -5,8 +7,7 @@ from model import *
 import numpy as np
 import itertools
 import datetime
-
-
+from torch.utils.tensorboard import SummaryWriter
 
 class K_Fold:
     def __init__(self, dataset_1, dataset_2, k=7, batch_size=64):
@@ -42,23 +43,29 @@ class K_Fold:
 
 def k_fold_CV(noisy_ds_1, noisy_ds_2, k=10, **kwargs):
 
-    SNR=[]
-
+    test_SNR=[]
+    train_loss=[]
+    train_SNR=[]
     fold_generator = K_Fold(noisy_ds_1, noisy_ds_2, k=k)
 
     while fold_generator.has_next():
+
         model = Model(**kwargs)
         train_input_chunk, train_target_chunk, test_input_chunk, test_target_chunk = fold_generator.fold()
 
         print("Train input chunk ", len(train_input_chunk))
         print("Test input chunk ", len(test_input_chunk))
 
-        model.train(train_input_chunk,train_target_chunk, num_epochs=kwargs.get("num_epoch", 20))
-        
-        SNR.append(model.measureSNR(test_input_chunk, test_target_chunk))
+        fold_train_loss, fold_train_SNR = model.train(train_input_chunk,train_target_chunk, num_epochs=kwargs.get("num_epoch", 20))
+        train_loss.append(fold_train_loss)
+        train_SNR.append(fold_train_SNR)
+
+        test_SNR.append(model.measureSNR(test_input_chunk, test_target_chunk))
 
 
-    return sum(SNR)/len(SNR)
+
+
+    return sum(train_loss)/len(train_loss), sum(train_SNR)/len(train_SNR), np.mean(test_SNR)
 
 
 
@@ -68,10 +75,17 @@ def combination_generator(**kwargs):
 
 def grid_search(noisy_ds_1, noisy_ds_2, **kwargs):
     results={}
+
+    writer = SummaryWriter()
     for combination in combination_generator(**kwargs):
+
+
         print(combination)
-        results[str(combination)] = k_fold_CV(noisy_ds_1, noisy_ds_2, k =4, **combination)
-    
+        res=k_fold_CV(noisy_ds_1, noisy_ds_2, k =4, **combination)
+        
+        writer.add_hparams({k: str(v) for k, v in combination.items()},{"Loss/train":res[0], "SNR/train":res[1], "Loss/test":res[2]})
+
+    writer.close()
     f = open("gridsearch-{}.txt".format(datetime.datetime.now()), "x") 
     f.write(str(results))
     return results
@@ -85,7 +99,8 @@ if __name__ == "__main__":
     parameters = {
         "num_epoch" : [5,10,20], 
         "lr":[4e-3, 1e-3, 5e-4],
-        #"model":["U-Net", "Mini_Encoder"]
+        "model":[UNet, MiniEncoder],
+        "loss":[nn.MSELoss, nn.L1Loss,nn.HuberLoss]
     }
    
     device = torch.device ( "cuda" if torch.cuda.is_available() else "cpu" )
