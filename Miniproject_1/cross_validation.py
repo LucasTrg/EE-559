@@ -41,9 +41,8 @@ class K_Fold:
         return self.fold_count<self.k
         
 
-def k_fold_CV(noisy_ds_1, noisy_ds_2, k=10, **kwargs):
+def k_fold_CV(noisy_ds_1, noisy_ds_2,test_noisy_ds, test_clean_ds, k=10, **kwargs):
 
-    test_SNR=[]
     train_loss=[]
     train_SNR=[]
     fold_generator = K_Fold(noisy_ds_1, noisy_ds_2, k=k)
@@ -53,6 +52,8 @@ def k_fold_CV(noisy_ds_1, noisy_ds_2, k=10, **kwargs):
         model = Model(**kwargs)
         train_input_chunk, train_target_chunk, test_input_chunk, test_target_chunk = fold_generator.fold()
 
+
+
         print("Train input chunk ", len(train_input_chunk))
         print("Test input chunk ", len(test_input_chunk))
 
@@ -60,12 +61,18 @@ def k_fold_CV(noisy_ds_1, noisy_ds_2, k=10, **kwargs):
         train_loss.append(fold_train_loss)
         train_SNR.append(fold_train_SNR)
 
-        test_SNR.append(model.measureSNR(test_input_chunk, test_target_chunk))
+        test_SNR=0
+        for input, target in zip(test_noisy_ds, test_clean_ds):
+            input=input.to(model.device).float()
+            target=target.to(model.device).float()
+            outputs = model.predict(input)
+
+            test_SNR+=utils.psnr(outputs, target)
+            i+=1
+        
 
 
-
-
-    return sum(train_loss)/len(train_loss), sum(train_SNR)/len(train_SNR), np.mean(test_SNR)
+    return sum(train_loss)/len(train_loss),  sum(train_SNR)/len(train_SNR), test_SNR/i
 
 
 
@@ -73,7 +80,7 @@ def combination_generator(**kwargs):
     for instance in itertools.product(*kwargs.values()):
         yield dict(zip(kwargs.keys(),instance))
 
-def grid_search(noisy_ds_1, noisy_ds_2, **kwargs):
+def grid_search(noisy_ds_1, noisy_ds_2,test_noisy_ds, test_clean_ds, cross_validation=False, **kwargs):
     results={}
 
     writer = SummaryWriter()
@@ -81,9 +88,24 @@ def grid_search(noisy_ds_1, noisy_ds_2, **kwargs):
 
 
         print(combination)
-        res=k_fold_CV(noisy_ds_1, noisy_ds_2, k =4, **combination)
-        
-        writer.add_hparams({k: str(v) for k, v in combination.items()},{"Loss/train":res[0], "SNR/train":res[1], "Loss/test":res[2]})
+        if cross_validation:
+            res=k_fold_CV(noisy_ds_1, noisy_ds_2, test_noisy_ds, test_noisy_ds, k =4, **combination)
+            writer.add_hparams({k: str(v) for k, v in combination.items()},{"Loss/train":res[0], "SNR/train":res[1], "Loss/test":res[2]})
+
+        else :
+            model = Model(**combination)
+            train_input_chunk_loader = torch.utils.data.DataLoader(noisy_ds_1/255, batch_size=combination.get("batch_size",32), shuffle=False, num_workers=3, pin_memory=True)
+            train_target_chunk_loader = torch.utils.data.DataLoader(noisy_ds_2/255, batch_size=combination.get("batch_size",32), shuffle=False, num_workers=3, pin_memory=True)
+
+            test_input_chunk_loader = torch.utils.data.DataLoader(test_noisy_ds/255, batch_size=combination.get("batch_size",32), shuffle=False, num_workers=3, pin_memory=True)
+            test_target_chunk_loader = torch.utils.data.DataLoader(test_noisy_ds/255, batch_size=combination.get("batch_size",32), shuffle=False, num_workers=3, pin_memory=True)
+
+            fold_train_loss, fold_train_SNR = model.train(train_input_chunk_loader,train_target_chunk_loader, num_epochs=combination.get("num_epoch", 20))
+            test_SNR=model.measureSNR(test_input_chunk_loader,test_target_chunk_loader)
+
+            writer.add_hparams({k: str(v) for k, v in combination.items()},{"Loss/train":fold_train_loss, "SNR/train":fold_train_SNR, "Loss/test":test_SNR})
+            print(test_SNR)
+
 
     writer.close()
     f = open("gridsearch-{}.txt".format(datetime.datetime.now()), "x") 
@@ -97,16 +119,20 @@ if __name__ == "__main__":
     batch_size=32
     
     parameters = {
-        "num_epoch" : [5,10,20], 
+        "num_epoch" : [10,20], 
         "lr":[4e-3, 1e-3, 5e-4],
-        "model":[UNet, MiniEncoder],
-        "loss":[nn.MSELoss, nn.L1Loss,nn.HuberLoss]
+        "model":[UNet],#MiniEncoder
+        "loss":[nn.MSELoss, nn.L1Loss,nn.HuberLoss],
+        "batch_size":[32,64],
+        "channel_number":[96, 192]
     }
    
     device = torch.device ( "cuda" if torch.cuda.is_available() else "cpu" )
 
     train_input_dataset , train_target_dataset = torch.load ("train_data.pkl")
+    test_input_dataset, test_target_dataset = torch.load("val_data.pkl")
+    
 
-    print(grid_search(train_input_dataset, train_target_dataset,**parameters))
+    print(grid_search(train_input_dataset, train_target_dataset,test_input_dataset, test_target_dataset,**parameters))
     #print(k_fold_CV(train_input_dataset,train_target_dataset,k=5, kwargs=kwargs))
     

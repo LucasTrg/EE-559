@@ -10,7 +10,7 @@ class VeryMiniEncoder(nn.Module):
         super().__init__()
 
         input_channel_number = 3
-        self.enc_conv0 = nn.Conv2d(in_channels=input_channel_number, out_channels=16, kernel_size=3, padding="same", stride=1)
+        self.enc_conv0 = nn.Conv2d(in_channels=input_int(channel_number), out_channels=16, kernel_size=3, padding="same", stride=1)
         self.relu0 = nn.LeakyReLU(negative_slope=0.01)
         self.enc_conv1 = nn.Conv2d(in_channels=16, out_channels=3, kernel_size=3, padding="same",stride=1)
         self.sigmoid = nn.Sigmoid()
@@ -24,7 +24,7 @@ class MiniEncoder(nn.Module):
         super().__init__()
 
         input_channel_number = 3
-        self.enc_conv0 = nn.Conv2d(in_channels=input_channel_number, out_channels=48, kernel_size=3, padding="same", stride=1)
+        self.enc_conv0 = nn.Conv2d(in_channels=input_int(channel_number), out_channels=48, kernel_size=3, padding="same", stride=1)
         self.relu0 = nn.LeakyReLU(negative_slope=0.1)
         
         self.enc_conv1 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3, padding="same",stride=1)
@@ -37,13 +37,13 @@ class MiniEncoder(nn.Module):
 
         self.upsample1 = nn.Upsample(scale_factor=2, mode="nearest")
 
-        self.dec_conv1A = nn.Conv2d(in_channels=48+input_channel_number, out_channels=64, kernel_size=3, padding="same")
+        self.dec_conv1A = nn.Conv2d(in_channels=48+input_int(channel_number), out_channels=64, kernel_size=3, padding="same")
         self.relu1A = nn.LeakyReLU(negative_slope=0.1)
 
         self.dec_conv1B = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3, padding="same")
         self.relu1B = nn.LeakyReLU(negative_slope=0.1)
 
-        self.dec_conv1C = nn.Conv2d(in_channels=32, out_channels=input_channel_number, kernel_size=3, padding="same")
+        self.dec_conv1C = nn.Conv2d(in_channels=32, out_channels=input_int(channel_number), kernel_size=3, padding="same")
 
     def forward(self, features):
         stack = [features]
@@ -78,64 +78,69 @@ class UNet(nn.Module):
         ##Define all layers here 
 
         input_channel_number = 3
-
-        self.enc_conv0 = nn.Conv2d(in_channels=input_channel_number, out_channels=48, kernel_size=3, padding="same", stride=1)
+        channel_number = kwargs.get("channel_number",96)
+        self.enc_conv0 = nn.Conv2d(in_channels=input_channel_number, out_channels=int(channel_number/2), kernel_size=3, padding="same", stride=1)
         self.relu0 = nn.LeakyReLU(negative_slope=0.1)
 
-        self.enc_conv1 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3, padding="same",stride=1)
+        self.enc_conv1 = nn.Conv2d(in_channels=int(channel_number/2), out_channels=int(channel_number/2), kernel_size=3, padding="same",stride=1)
         self.pool1 = nn.MaxPool2d(kernel_size=2)
         self.relu1 = nn.LeakyReLU(negative_slope=0.1)
 
-        self.enc_conv2 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3, padding="same", stride=1)
+        self.enc_conv2 = nn.Conv2d(in_channels=int(channel_number/2), out_channels=int(channel_number/2), kernel_size=3, padding="same", stride=1)
         self.pool2 = nn.MaxPool2d(kernel_size=2)
         self.relu2 = nn.LeakyReLU(negative_slope=0.1)
 
-        self.enc_conv3 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3, padding="same")
+        self.enc_conv3 = nn.Conv2d(in_channels=int(channel_number/2), out_channels=int(channel_number/2), kernel_size=3, padding="same")
         self.pool3 = nn.MaxPool2d(kernel_size=2)
         self.relu3= nn.LeakyReLU(negative_slope=0.1)
 
-        self.enc_conv4 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3, padding="same")
+        self.enc_conv4 = nn.Conv2d(in_channels=int(channel_number/2), out_channels=int(channel_number/2), kernel_size=3, padding="same")
         self.pool4 = nn.MaxPool2d(kernel_size=2)
         self.relu4 = nn.LeakyReLU(negative_slope=0.1)
 
-        self.enc_conv5 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3, padding="same")
+        self.enc_conv5 = nn.Conv2d(in_channels=int(channel_number/2), out_channels=int(channel_number/2), kernel_size=3, padding="same")
         self.pool5 = nn.MaxPool2d(kernel_size=2)
         self.relu5 = nn.LeakyReLU(negative_slope=0.1)
 
-        self.enc_conv6 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3, padding="same")
+        self.enc_conv6 = nn.Conv2d(in_channels=int(channel_number/2), out_channels=int(channel_number/2), kernel_size=3, padding="same")
         self.relu6 = nn.LeakyReLU(negative_slope=0.1)
 
         self.upsample5 = nn.Upsample(scale_factor=2, mode="nearest")
         
-        self.dec_conv5A = nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3, padding="same")
+        self.dec_conv5A = nn.Conv2d(in_channels=int(channel_number), out_channels=int(channel_number), kernel_size=3, padding="same")
+        self.BN5 = nn.BatchNorm2d(channel_number)
         self.relu5A = nn.LeakyReLU(negative_slope=0.1)
-        self.dec_conv5B = nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3, padding="same")
+        self.dec_conv5B = nn.Conv2d(in_channels=int(channel_number), out_channels=int(channel_number), kernel_size=3, padding="same")
         self.relu5B = nn.LeakyReLU(negative_slope=0.1)
 
         self.upsample4 = nn.Upsample(scale_factor=2, mode="nearest")
 
-        self.dec_conv4A = nn.Conv2d(in_channels=144, out_channels=96, kernel_size=3, padding="same")
+        self.dec_conv4A = nn.Conv2d(in_channels=int(channel_number*3/2), out_channels=int(channel_number), kernel_size=3, padding="same")
+        self.BN4 = nn.BatchNorm2d(channel_number)
         self.relu4A = nn.LeakyReLU(negative_slope=0.1)
-        self.dec_conv4B = nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3, padding="same")
+        self.dec_conv4B = nn.Conv2d(in_channels=int(channel_number), out_channels=int(channel_number), kernel_size=3, padding="same")
         self.relu4B = nn.LeakyReLU(negative_slope=0.1)
 
         self.upsample3 = nn.Upsample(scale_factor=2, mode="nearest")
 
-        self.dec_conv3A = nn.Conv2d(in_channels=144, out_channels=96, kernel_size=3, padding="same")
+        self.dec_conv3A = nn.Conv2d(in_channels=int(channel_number*3/2), out_channels=int(channel_number), kernel_size=3, padding="same")
+        self.BN3 = nn.BatchNorm2d(channel_number)
         self.relu3A = nn.LeakyReLU(negative_slope=0.1)
-        self.dec_conv3B = nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3, padding="same")
+        self.dec_conv3B = nn.Conv2d(in_channels=int(channel_number), out_channels=int(channel_number), kernel_size=3, padding="same")
         self.relu3B = nn.LeakyReLU(negative_slope=0.1)
 
         self.upsample2 = nn.Upsample(scale_factor=2, mode="nearest")
 
-        self.dec_conv2A = nn.Conv2d(in_channels=144, out_channels=96, kernel_size=3, padding="same")
+        self.dec_conv2A = nn.Conv2d(in_channels=int(channel_number*3/2), out_channels=int(channel_number), kernel_size=3, padding="same")
+        self.BN2 = nn.BatchNorm2d(channel_number)
         self.relu2A = nn.LeakyReLU(negative_slope=0.1)
-        self.dec_conv2B = nn.Conv2d(in_channels=96, out_channels=96, kernel_size=3, padding="same")
+        self.dec_conv2B = nn.Conv2d(in_channels=int(channel_number), out_channels=int(channel_number), kernel_size=3, padding="same")
         self.relu2B = nn.LeakyReLU(negative_slope=0.1)
 
         self.upsample1 = nn.Upsample(scale_factor=2, mode="nearest")
 
-        self.dec_conv1A = nn.Conv2d(in_channels=96+input_channel_number, out_channels=64, kernel_size=3, padding="same")
+        self.dec_conv1A = nn.Conv2d(in_channels=channel_number+input_channel_number, out_channels=64, kernel_size=3, padding="same")
+        self.BN1 = nn.BatchNorm2d(64)
         self.relu1A = nn.LeakyReLU(negative_slope=0.1)
         self.dec_conv1B = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3, padding="same")
         self.relu1B = nn.LeakyReLU(negative_slope=0.1)
@@ -183,7 +188,7 @@ class UNet(nn.Module):
         decoding=torch.cat((decoding, stack.pop()), axis=1)
 
 
-        decoding=self.relu5A(self.dec_conv5A(decoding))        
+        decoding=self.relu5A(self.BN5(self.dec_conv5A(decoding)))        
         decoding=self.relu5B(self.dec_conv5B(decoding))        
         #print("After dec 5", decoding.shape)
         
@@ -191,26 +196,26 @@ class UNet(nn.Module):
         #print("After up 4", decoding.shape)
 
         decoding=torch.cat((decoding, stack.pop()), axis=1)
-        decoding=self.relu4A(self.dec_conv4A(decoding))        
+        decoding=self.relu4A(self.BN4(self.dec_conv4A(decoding)))        
         decoding=self.relu4B(self.dec_conv4B(decoding))   
         #print("After dec 4", decoding.shape)
 
 
         decoding = self.upsample3(decoding) 
         decoding=torch.cat((decoding, stack.pop()), axis=1)
-        decoding=self.relu3A(self.dec_conv3A(decoding))        
+        decoding=self.relu3A(self.BN3(self.dec_conv3A(decoding)))        
         decoding=self.relu3B(self.dec_conv3B(decoding)) 
         #print("After dec 3", decoding.shape)
 
         decoding = self.upsample2(decoding) 
         decoding=torch.cat((decoding, stack.pop()), axis=1)
-        decoding=self.relu2A(self.dec_conv2A(decoding))        
+        decoding=self.relu2A(self.BN2(self.dec_conv2A(decoding)))        
         decoding=self.relu2B(self.dec_conv2B(decoding))    
         #print("After dec 2", decoding.shape)
 
         decoding = self.upsample1(decoding)
         decoding=torch.cat((decoding, stack.pop()), axis=1)
-        decoding=self.relu1A(self.dec_conv1A(decoding))        
+        decoding=self.relu1A(self.BN1(self.dec_conv1A(decoding)))        
         decoding=self.relu1B(self.dec_conv1B(decoding)) 
         decoding=self.dec_conv1C(decoding)
         decoding=self.linear_act(decoding)
