@@ -10,7 +10,7 @@ class VeryMiniEncoder(nn.Module):
         super().__init__()
 
         input_channel_number = 3
-        self.enc_conv0 = nn.Conv2d(in_channels=input_int(channel_number), out_channels=16, kernel_size=3, padding="same", stride=1)
+        self.enc_conv0 = nn.Conv2d(in_channels=input_channel_number, out_channels=16, kernel_size=3, padding="same", stride=1)
         self.relu0 = nn.LeakyReLU(negative_slope=0.01)
         self.enc_conv1 = nn.Conv2d(in_channels=16, out_channels=3, kernel_size=3, padding="same",stride=1)
         self.sigmoid = nn.Sigmoid()
@@ -24,7 +24,7 @@ class MiniEncoder(nn.Module):
         super().__init__()
 
         input_channel_number = 3
-        self.enc_conv0 = nn.Conv2d(in_channels=input_int(channel_number), out_channels=48, kernel_size=3, padding="same", stride=1)
+        self.enc_conv0 = nn.Conv2d(in_channels=input_channel_number, out_channels=48, kernel_size=3, padding="same", stride=1)
         self.relu0 = nn.LeakyReLU(negative_slope=0.1)
         
         self.enc_conv1 = nn.Conv2d(in_channels=48, out_channels=48, kernel_size=3, padding="same",stride=1)
@@ -37,13 +37,13 @@ class MiniEncoder(nn.Module):
 
         self.upsample1 = nn.Upsample(scale_factor=2, mode="nearest")
 
-        self.dec_conv1A = nn.Conv2d(in_channels=48+input_int(channel_number), out_channels=64, kernel_size=3, padding="same")
+        self.dec_conv1A = nn.Conv2d(in_channels=48+input_channel_number, out_channels=64, kernel_size=3, padding="same")
         self.relu1A = nn.LeakyReLU(negative_slope=0.1)
 
         self.dec_conv1B = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3, padding="same")
         self.relu1B = nn.LeakyReLU(negative_slope=0.1)
 
-        self.dec_conv1C = nn.Conv2d(in_channels=32, out_channels=input_int(channel_number), kernel_size=3, padding="same")
+        self.dec_conv1C = nn.Conv2d(in_channels=32, out_channels=input_channel_number, kernel_size=3, padding="same")
 
     def forward(self, features):
         stack = [features]
@@ -79,6 +79,7 @@ class UNet(nn.Module):
 
         input_channel_number = 3
         channel_number = kwargs.get("channel_number",96)
+        self.batch_norm=kwargs.get("batch_norm", True)
         self.enc_conv0 = nn.Conv2d(in_channels=input_channel_number, out_channels=int(channel_number/2), kernel_size=3, padding="same", stride=1)
         self.relu0 = nn.LeakyReLU(negative_slope=0.1)
 
@@ -187,8 +188,11 @@ class UNet(nn.Module):
         #print("STACK POP SHAPE", stack[-1].shape)
         decoding=torch.cat((decoding, stack.pop()), axis=1)
 
+        if self.batch_norm:
+            decoding=self.relu5A(self.BN5(self.dec_conv5A(decoding)))
+        else:
+            decoding=self.relu5A(self.dec_conv5A(decoding))
 
-        decoding=self.relu5A(self.BN5(self.dec_conv5A(decoding)))        
         decoding=self.relu5B(self.dec_conv5B(decoding))        
         #print("After dec 5", decoding.shape)
         
@@ -196,26 +200,45 @@ class UNet(nn.Module):
         #print("After up 4", decoding.shape)
 
         decoding=torch.cat((decoding, stack.pop()), axis=1)
-        decoding=self.relu4A(self.BN4(self.dec_conv4A(decoding)))        
+        if self.batch_norm:
+            decoding=self.relu4A(self.BN4(self.dec_conv4A(decoding)))        
+        else:
+            decoding=self.relu4A(self.dec_conv4A(decoding))
+
         decoding=self.relu4B(self.dec_conv4B(decoding))   
         #print("After dec 4", decoding.shape)
 
 
         decoding = self.upsample3(decoding) 
         decoding=torch.cat((decoding, stack.pop()), axis=1)
-        decoding=self.relu3A(self.BN3(self.dec_conv3A(decoding)))        
+        if self.batch_norm:
+            decoding=self.relu3A(self.BN3(self.dec_conv3A(decoding)))        
+        else:
+            decoding=self.relu3A(self.dec_conv3A(decoding))     
+
         decoding=self.relu3B(self.dec_conv3B(decoding)) 
         #print("After dec 3", decoding.shape)
 
         decoding = self.upsample2(decoding) 
         decoding=torch.cat((decoding, stack.pop()), axis=1)
-        decoding=self.relu2A(self.BN2(self.dec_conv2A(decoding)))        
+
+        if self.batch_norm:
+            decoding=self.relu2A(self.BN2(self.dec_conv2A(decoding)))        
+        else:
+            decoding=self.relu2A(self.dec_conv2A(decoding))       
+
         decoding=self.relu2B(self.dec_conv2B(decoding))    
         #print("After dec 2", decoding.shape)
 
         decoding = self.upsample1(decoding)
         decoding=torch.cat((decoding, stack.pop()), axis=1)
-        decoding=self.relu1A(self.BN1(self.dec_conv1A(decoding)))        
+
+
+        if self.batch_norm:
+            decoding=self.relu1A(self.BN1(self.dec_conv1A(decoding)))        
+        else:
+            decoding=self.relu1A(self.dec_conv1A(decoding))     
+
         decoding=self.relu1B(self.dec_conv1B(decoding)) 
         decoding=self.dec_conv1C(decoding)
         decoding=self.linear_act(decoding)
