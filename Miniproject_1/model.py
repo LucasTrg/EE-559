@@ -73,6 +73,11 @@ class MiniEncoder(nn.Module):
 
 class UNet(nn.Module):
     def __init__(self, **kwargs) -> None:
+        """
+        Main model architecture, derived from the U-Net paper and it's adaptation in the Noise2Noise paper
+        Accept hyperparamets passed as kwargs.
+        
+        """        
         super().__init__()
 
         ##Define all layers here 
@@ -151,6 +156,14 @@ class UNet(nn.Module):
         
 
     def forward(self, features):
+        """_summary_
+
+        Args:
+            features (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """        
         stack = [features]
         #print("features", features.shape)
 
@@ -250,7 +263,12 @@ class UNet(nn.Module):
 
 class Model():
     def __init__(self,TBWriter=None, foldCount=None,**kwargs) -> None:
+        """Wrapper class for the model architecture. Allows to interface with the gridsearch pipeline by handling all the needed instantiating and by provinding methods to train, load and evaluate models.
 
+        Args:
+            TBWriter (_type_, optional): Tensor board writer to export all the needed logs. Defaults to None.
+            foldCount (_type_, optional): _description_. Defaults to None.
+        """
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         

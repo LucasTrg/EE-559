@@ -174,7 +174,7 @@ if __name__ == "__main__":
         "loss":[nn.MSELoss, nn.L1Loss,nn.HuberLoss],
         "batch_size":[16,32,64],
         "channel_number":[48,96, 192],
-        "batch_norm":[True,False]
+        "batch_norm":[True]
     }
    
     device = torch.device ( "cuda" if torch.cuda.is_available() else "cpu" )
