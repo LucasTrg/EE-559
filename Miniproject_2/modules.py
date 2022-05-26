@@ -20,7 +20,6 @@ class Conv2d(Module):
         ## instantiate parameters
         super().__init__()
 
-
         self.kernel_size = kernel_size; self.bias = bias; self.padding = padding; self.stride = stride
         self.in_channels = in_channels; self.out_channels = out_channels
 
@@ -41,36 +40,33 @@ class Conv2d(Module):
         self.input = input
         self.unfolded = unfold(input, kernel_size = self.kernel_size, padding = self.padding, stride = self.stride)
         # the convolution is performed as a matrix multiplication after unfolding the input and reshaping the weights
-        out = self.w.view(self.out_channels, -1) @ self.unfolded 
-        print(out.shape)
+        output = self.w.view(self.out_channels, -1) @ self.unfolded 
         # if bias = true, add the bias after flattening it
         if(self.bias): 
-            out.add(self.b.view(1,-1,1)) 
-
+            output.add(self.b.view(1,-1,1)) 
         # compute the output dimensions
-        outDim2 = (input.shape[2] + 2*self.padding[0] - self.kernel_size[0])//self.stride[0] + 1
-        outDim3 = (input.shape[3] + 2*self.padding[1] - self.kernel_size[1])//self.stride[1] + 1
-
+        Hout = (input.shape[2] + 2*self.padding[0] - self.kernel_size[0])//self.stride[0] + 1
+        Wout = (input.shape[3] + 2*self.padding[1] - self.kernel_size[1])//self.stride[1] + 1
         # return the output in the output dimensions
-        return out.view(input.shape[0], self.out_channels, outDim2 , outDim3)
+        return output.view(input.shape[0], self.out_channels, Hout , Wout)
 
     def backward(self, gradwrtoutput):
         ## backward pass of the module
-        # the gradient of the output is reshaped to be able to perform a convolution using matrix multiplication
-        grad_reshape = gradwrtoutput.reshape(gradwrtoutput.shape[0],self.out_channels,self.unfolded.shape[2]).transpose(1,2)
+        # the gradient of the images is reshaped to 3 dimensions
+        gradwrtouput_im2col = gradwrtoutput.view(gradwrtoutput.shape[0], gradwrtoutput.shape[1], -1)
 
-        # the gradient of the weight is computed through a convolution between the output gradient and the input
-        # the result is summed and reshaped according to the weight dimensions
-        self.dw = (self.unfolded @ grad_reshape).sum(0).t().view(self.dw.shape)
+        #Weight gradient, it is a convolution as well: dw = dy*(dx)', summed in the batch dimension
+        self.dw = (gradwrtouput_im2col @ self.unfolded.transpose(1,2)).sum(0).view(self.dw.shape)
 
-        # if bias = true, get the gradient of the bias by summing the gradient of the output along the first, third and fourth dimension
-        if(self.bias): 
+        # if bias = true, get the gradient of the bias by summing the gradient to the channels(2nd) dimension
+        if(self.bias):
             self.db = gradwrtoutput.sum((0,2,3))
         
-        # return the gradient of the input by performing a convolution between the weights and the gradient of the ouput
-        # the result is reshaped and folded to return the correct dimension
-        gw = (grad_reshape@self.w.view(self.out_channels, -1)).transpose(1,2)
-        return fold(gw, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
+        # Gradient with respect to the input, dx = (dw)'*dy
+        gradwrtinput = (self.w.view(self.out_channels, -1).t()@gradwrtouput_im2col)
+
+        #Folded back to 4 dimensions
+        return fold(gradwrtinput, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
 
     def param(self):
         ## return the parameters values and gradients by pairs
@@ -101,43 +97,49 @@ class TransposeConv2d(Module):
             self.db = empty(self.b.shape).zero_()
  
     def forward(self, input):
-        ## backward pass of the module
-        # the gradient of the output is reshaped to be able to perform a convolution using matrix multiplication
-        self.input_reshape = input.reshape(input.shape[0],self.in_channels,-1).transpose(1,2)
-        #self.unfolded = unfold(input, kernel_size = self.kernel_size, padding = self.kernel_size - 1 - self.padding, stride = 1)
+        ## forward pass of the module, analog to the backward pass of Conv2D
+        # the input is reshaped to columns for the matrix operations
+        self.input_im2col = input.view(input.shape[0],input.shape[1],-1)
+
         # compute the output dimensions
-        outDim2 = (input.shape[2]-1)*self.stride[0] - 2*self.padding[0] + self.kernel_size[0]
-        outDim3 = (input.shape[3]-1)*self.stride[1] - 2*self.padding[1] + self.kernel_size[1]
-        # return the gradient of the input by performing a convolution between the weights and the gradient of the ouput
-        # the result is reshaped and folded to return the correct dimension
-        gw = (self.input_reshape@self.w.view(self.in_channels, -1)).transpose(1,2)
-        #print(gw.shape)
-        output = fold(gw, (outDim2, outDim3), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
+        Hout = (input.shape[2]-1)*self.stride[0] - 2*self.padding[0] + self.kernel_size[0]
+        Wout = (input.shape[3]-1)*self.stride[1] - 2*self.padding[1] + self.kernel_size[1]
+
+        #(w)'*x, transposed convolution as a matrix multiplication
+        wx = (self.w.view(self.in_channels, -1).t()@self.input_im2col)
+
+        #Fold back to 4 dimensions
+        output = fold(wx, (Hout, Wout), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
+
         if(self.bias):
+            #add the bias
             output.add(self.b.view(1,-1,1,1));
+
         return output
 
 
     def backward(self, gradwrtoutput):
-        ## forward pass of the module
+        ## backward pass of the module, analog the forward pass of Conv2D
+
+        # Unfold input
         self.unfolded = unfold(gradwrtoutput, kernel_size = self.kernel_size, padding = self.padding, stride = self.stride)
-        # the convolution is performed as a matrix multiplication after unfolding the input and reshaping the weights
-        out = self.w.view(self.in_channels, -1) @ self.unfolded 
 
-        # the gradient of the weight is computed through a convolution between the output gradient and the input
-        # the result is summed and reshaped according to the weight dimensions
-        self.dw = (self.unfolded @ self.input_reshape).sum(0).t().view(self.dw.shape)
+        # Compute the gradient according to the input: dx = dw*x
+        gradwrtinput = self.w.view(self.in_channels, -1) @ self.unfolded 
 
-        # if bias = true, get the gradient of the bias by summing the gradient of the output along the first, third and fourth dimension
+        #Weight gradient, it is a convolution as well: dw = dy*(dx)', summed in the batch dimension
+        self.dw = (self.input_im2col @ self.unfolded.transpose(1,2)).sum(0).view(self.dw.shape)
+
+        # if bias = true, get the gradient of the bias by summing the gradient to the channels(2nd) dimension
         if(self.bias): 
             self.db = gradwrtoutput.sum((0,2,3))
 
         # compute the output dimensions
-        outDim2 = (gradwrtoutput.shape[2] + 2*self.padding[0] - self.kernel_size[0])//self.stride[0] + 1
-        outDim3 = (gradwrtoutput.shape[3] + 2*self.padding[1] - self.kernel_size[1])//self.stride[1] + 1
+        Hout = (gradwrtoutput.shape[2] + 2*self.padding[0] - self.kernel_size[0])//self.stride[0] + 1
+        Wout = (gradwrtoutput.shape[3] + 2*self.padding[1] - self.kernel_size[1])//self.stride[1] + 1
 
-        # return the output after reshaping in the correct dimensions
-        return out.view(gradwrtoutput.shape[0], self.in_channels, outDim2 , outDim3)
+        # return the gradient with respect to the input after reshaping in the correct dimensions
+        return gradwrtinput.view(gradwrtoutput.shape[0], self.in_channels, Hout , Wout)
 
     def param(self):
         ## return the parameters values and gradients by pairs
@@ -221,7 +223,7 @@ class SGD():
             val, grad = param
             val.add(-self.eta*grad)
 
-model = Sequential([Conv2d(3, 25, kernel_size = (2,2), stride=(3,3)), ReLU(), TransposeConv2d(25, 3, kernel_size = (2,2), stride = (3,3)), Sigmoid()])
+model = Sequential([Conv2d(3, 25, kernel_size = (2,2), stride = (2,2)), ReLU(), TransposeConv2d(25, 3, kernel_size = (2,2), stride = (2,2)), Sigmoid()])
 criterion = MSE()
 
 n = 1000
