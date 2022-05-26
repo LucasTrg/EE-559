@@ -22,6 +22,9 @@ if __name__=="__main__":
 
     SNR=0
     cSNR=0
+    SNRin=0
+
+
     i=0
     for input, target in zip(test_input_loader, test_target_loader):
         input=input.to(Device).float()
@@ -29,13 +32,14 @@ if __name__=="__main__":
         outputs = model.predict(input)
 
         cSNR+=utils.psnr(outputs, target)
+        SNRin+=utils.psnr(input, target)
         i+=1
            #cSNR+=utils.psnr(model.predict(img1)[0], img2)
 
 
 
     
-    print("Average original SNR :", SNR)
+    print("Average original SNR :", SNRin)
     print("Average compensated SNR :", cSNR/i)
 
 

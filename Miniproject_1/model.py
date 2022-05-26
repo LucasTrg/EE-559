@@ -226,6 +226,7 @@ class Model():
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.autoencoder = AutoEncoder(**kwargs).to(self.device)
+        self.autoencoder = VeryMiniEncoder(*kwargs).to(self.device)
         self.criterion = nn.MSELoss()
         self.optimizer=torch.optim.Adam(self.autoencoder.parameters(),lr=kwargs.get("lr", 1e-3))
         ##Define all layers here 
@@ -236,7 +237,7 @@ class Model():
     
 
     def load_pretrained_model(self, path,**kwargs)-> None:
-        model = AutoEncoder(*kwargs)
+        model = VeryMiniEncoder(*kwargs)
         model.load_state_dict(torch.load(path))
         model.eval().to(self.device)
         self.autoencoder=model
@@ -258,7 +259,9 @@ class Model():
 
                 train_loss = self.criterion(outputs, batch_target)
 
+
                 train_loss.backward()
+
 
                 self.optimizer.step()
                 self.scheduler.step()

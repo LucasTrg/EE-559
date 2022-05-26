@@ -16,10 +16,10 @@ class Module(object):
 
 class Conv2d(Module):
     ### Convolutional layer, works in the same manner as torch.nn.Conv2d : https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
-    def __init__(self, in_channels, out_channels, kernel_size = (3,3), bias = True, padding = (0,0), stride = (1,1)):
+    def __init__(self, in_channels, out_channels, kernel_size = (3,3), bias = True, dilation=(1,1) ,padding = (0,0), stride = (1,1)):
         ## instantiate parameters
         super().__init__()
-        self.kernel_size = kernel_size; self.bias = bias; self.padding = padding; self.stride = stride
+        self.kernel_size = kernel_size; self.bias = bias; self.dilation=dilation; self.padding = padding; self.stride = stride
         self.in_channels = in_channels; self.out_channels = out_channels
 
         # compute k for the uniform distribution
@@ -37,7 +37,7 @@ class Conv2d(Module):
     def forward(self, input):
         ## forward pass of the module
         self.input = input
-        self.unfolded = unfold(input, kernel_size = self.kernel_size, padding = self.padding, stride = self.stride)
+        self.unfolded = unfold(input, kernel_size = self.kernel_size, dilation=self.dilation, padding = self.padding, stride = self.stride)
         # the convolution is performed as a matrix multiplication after unfolding the input and reshaping the weights
         out = self.w.view(self.out_channels, -1) @ self.unfolded 
 
@@ -46,8 +46,8 @@ class Conv2d(Module):
             out.add(self.b.view(1,-1,1)) 
 
         # compute the output dimensions
-        outDim2 = (input.shape[2] + 2*self.padding[0] - self.kernel_size[0])//self.stride[0] + 1
-        outDim3 = (input.shape[3] + 2*self.padding[1] - self.kernel_size[1])//self.stride[1] + 1
+        outDim2 = (input.shape[2] + 2*self.padding[0] - self.dilation[0]*(self.kernel_size[0] -1) - 1 )//self.stride[0] + 1
+        outDim3 = (input.shape[3] + 2*self.padding[1] - self.dilation[1]*(self.kernel_size[1] -1) - 1 )//self.stride[1] + 1
 
         # return the output after reshaping in the correct dimensions
         return out.view(input.shape[0], self.out_channels, outDim2 , outDim3)
@@ -79,14 +79,14 @@ class Conv2d(Module):
             
 class TransposeConv2d(Module):
     ### Transposed convolutional layer, works in the same manner as torch.nn.ConvTranspose2d : https://pytorch.org/docs/stable/generated/torch.nn.ConvTranspose2d.html
-    def __init__(self, in_channels, out_channels, kernel_size = (3,3), stride = (1,1), padding = (0,0), bias = True):
+    def __init__(self, in_channels, out_channels, kernel_size = (3,3), stride = (1,1), dilation=(1,1), padding = (0,0), bias = True):
         ## instantiate parameters
         super().__init__()
-        self.kernel_size = kernel_size; self.bias = bias; self.padding = padding; self.stride = stride
+        self.kernel_size = kernel_size; self.bias = bias; self.dilation=dilation; self.padding = padding; self.stride = stride
         self.in_channels = in_channels; self.out_channels = out_channels
 
         # compute the "real" padding applied to the input using the padding and kernel size
-        self.real_padding = (kernel_size[0] - padding[0] -1, kernel_size[1] - padding[1] -1)
+        self.real_padding = (dilation[0]*(kernel_size[0] - 1) - padding[0], dilation[1]*(kernel_size[1] - 1) - padding[1])
 
         # compute k for the uniform distribution
         k = 1/(in_channels*kernel_size[0]*kernel_size[1])
@@ -111,7 +111,7 @@ class TransposeConv2d(Module):
         inputZeroInserted[:,:,::self.stride[0], ::self.stride[1]] = self.input
 
         # the convolution is performed as a matrix multiplication after unfolding the input and reshaping the weights
-        self.unfolded = unfold(inputZeroInserted, kernel_size = self.kernel_size, padding = self.real_padding)
+        self.unfolded = unfold(inputZeroInserted, kernel_size = self.kernel_size, dilation=self.dilation, padding = self.real_padding)
         out = self.w.view(self.out_channels, -1) @ self.unfolded
 
         # if bias = true, add the bias after reshaping accordingly
@@ -119,8 +119,8 @@ class TransposeConv2d(Module):
             out.add(self.b.view(1,-1,1))
 
         # compute the output dimensions
-        outDim2 = (input.shape[2]-1)*self.stride[0] - 2*self.padding[0] + self.kernel_size[0] 
-        outDim3 = (input.shape[3]-1)*self.stride[1]  - 2*self.padding[1] + self.kernel_size[1]
+        outDim2 = (input.shape[2]-1)*self.stride[0] - 2*self.padding[0] + self.dilation[0]*(self.kernel_size[0] - 1) + 1  
+        outDim3 = (input.shape[3]-1)*self.stride[1]  - 2*self.padding[1] + self.dilation[1]*(self.kernel_size[1] - 1) + 1
 
         # return the output after reshaping in the correct dimensions
         return out.view(input.shape[0], self.out_channels, outDim2 , outDim3)
@@ -205,7 +205,7 @@ class MSE(Module):
         ## forward pass, compute the loss
         self.input = input
         self.target = target
-        return sum((input - target).pow(2).sum(0))/(input.shape[1]*input.shape[2]*input.shape[3])
+        return (input - target).pow(2).sum(0)/(input.shape[1]*input.shape[2]*input.shape[3])
 
     def backward(self):
         ## backward pass, compute the gradient of the loss
@@ -225,7 +225,7 @@ class SGD():
             val, grad = param
             val.add(-self.eta*grad)
 
-"""model = Sequential([Conv2d(3, 25), ReLU(), TransposeConv2d(25, 3), Sigmoid()])
+model = Sequential([Conv2d(3, 25), ReLU(), TransposeConv2d(25, 3), Sigmoid()])
 criterion = MSE()
 
 n = 1000
@@ -247,4 +247,4 @@ loss = criterion.forward(output, target_tensor)
 loss_grad = criterion.backward()
 model.backward(loss_grad)
 optimizer = SGD(model.param())
-optimizer.step()"""
+optimizer.step()
