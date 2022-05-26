@@ -5,11 +5,26 @@ from model import *
 import numpy as np
 import itertools
 import datetime
+<<<<<<< HEAD
 
 
+=======
+import time
+from torch.utils.tensorboard import SummaryWriter
+>>>>>>> 060027db8fb450a7deb2314f3e8b282c740b5892
 
 class K_Fold:
+
     def __init__(self, dataset_1, dataset_2, k=7, batch_size=64):
+        """
+        Utility class interfacing with dataloader to provide folds to the K-Fold cross validation algorithm 
+
+        Args:
+            dataset_1 (_type_): First training dataset of noisy images
+            dataset_2 (_type_): Second training dataset of noisy images
+            k (int, optional): Number of folds to generate. Defaults to 7.
+            batch_size (int, optional): batch size for the dataloaders. Defaults to 64.
+        """        
         self.k=k
         self.dataset_1_chunks = dataset_1.chunk(k)
         self.dataset_2_chunks = dataset_2.chunk(k)
@@ -17,6 +32,12 @@ class K_Fold:
         self.batch_size = batch_size
 
     def fold(self):
+        """
+        Iterator-like method for generating a single fold
+
+        Returns:
+            _type_: _description_
+        """        
         if self.has_next():
             train_input_chunk=torch.cat([self.dataset_1_chunks[j] for j in range(self.k) if j!=self.fold_count])
             train_target_chunk=torch.cat([self.dataset_2_chunks[j] for j in range(self.k) if j!=self.fold_count])
@@ -37,13 +58,36 @@ class K_Fold:
             return train_input_chunk_loader, train_target_chunk_loader, test_input_chunk_loader, test_target_chunk_loader
 
     def has_next(self):
+        """Getter for the in-bounds condition of the class.
+
+        Returns:
+            boolean: Wether we can keep on iterating on folds or not 
+        """        
         return self.fold_count<self.k
         
 
+<<<<<<< HEAD
 def k_fold_CV(noisy_ds_1, noisy_ds_2, k=10, **kwargs):
 
     SNR=[]
 
+=======
+def k_fold_CV(noisy_ds_1, noisy_ds_2,test_noisy_ds, test_clean_ds, k=10, **kwargs):
+    """ 
+
+    Args:
+        noisy_ds_1 (_type_): First training dataset of noisy images
+        noisy_ds_2 (_type_): Second training dataset of noisy images
+        test_noisy_ds (_type_): Input testing dataset of noisy images
+        test_clean_ds (_type_): Target testing dataset of clean images
+        k (int, optional): _description_. Number of folds to generate for the k-fold process
+        kwargs(dict) : hyper-parameters passed to the model 
+    Returns:
+        tuple: (train loss, train SNR, test SNR)
+    """
+    train_loss=[]
+    train_SNR=[]
+>>>>>>> 060027db8fb450a7deb2314f3e8b282c740b5892
     fold_generator = K_Fold(noisy_ds_1, noisy_ds_2, k=k)
 
     while fold_generator.has_next():
@@ -61,20 +105,69 @@ def k_fold_CV(noisy_ds_1, noisy_ds_2, k=10, **kwargs):
     return sum(SNR)/len(SNR)
 
 
-
+ 
 def combination_generator(**kwargs):
+    """Generates all possible combinations of the possible hyperparameters given
+
+    Yields:
+        dict: dictionnary of a combination of hyperparamers to be passed to the model constructor 
+    """    
     for instance in itertools.product(*kwargs.values()):
         yield dict(zip(kwargs.keys(),instance))
 
+<<<<<<< HEAD
 def grid_search(noisy_ds_1, noisy_ds_2, **kwargs):
+=======
+def grid_search(noisy_ds_1, noisy_ds_2,test_noisy_ds, test_clean_ds, cross_validation=False, **kwargs):
+    """Perform grid-search over a dictionnary of list of hyperparamers, and write all results in tensorboard runs to be later analysed
+
+    Args:
+        noisy_ds_1 (_type_): First training dataset of noisy images
+        noisy_ds_2 (_type_): Second training dataset of noisy images
+        test_noisy_ds (_type_): Input testing dataset of noisy images
+        test_clean_ds (_type_): Target testing dataset of clean images
+        cross_validation (bool, optional): Wether or not to perform k_fold validation to provide better statistical stability to the computed metrics. Defaults to False as it slows really slows down the grid_search.
+
+    """    
+>>>>>>> 060027db8fb450a7deb2314f3e8b282c740b5892
     results={}
     for combination in combination_generator(**kwargs):
+<<<<<<< HEAD
         print(combination)
         results[str(combination)] = k_fold_CV(noisy_ds_1, noisy_ds_2, k =4, **combination)
     
     f = open("gridsearch-{}.txt".format(datetime.datetime.now()), "x") 
     f.write(str(results))
     return results
+=======
+
+        print(combination)
+        if cross_validation:
+            res=k_fold_CV(noisy_ds_1, noisy_ds_2, test_noisy_ds, test_noisy_ds, k =4, **combination)
+            writer.add_hparams({k: str(v) for k, v in combination.items()},{"Loss/train":res[0], "SNR/train":res[1], "Loss/test":res[2]})
+
+        else :
+            model = Model(**combination)
+            train_input_chunk_loader = torch.utils.data.DataLoader(noisy_ds_1/255, batch_size=combination.get("batch_size",32), shuffle=False, num_workers=3, pin_memory=True)
+            train_target_chunk_loader = torch.utils.data.DataLoader(noisy_ds_2/255, batch_size=combination.get("batch_size",32), shuffle=False, num_workers=3, pin_memory=True)
+
+            test_input_chunk_loader = torch.utils.data.DataLoader(test_noisy_ds/255, batch_size=combination.get("batch_size",32), shuffle=False, num_workers=3, pin_memory=True)
+            test_target_chunk_loader = torch.utils.data.DataLoader(test_noisy_ds/255, batch_size=combination.get("batch_size",32), shuffle=False, num_workers=3, pin_memory=True)
+            train_time = time.perf_counter()
+            fold_train_loss, fold_train_SNR = model.train(train_input_chunk_loader,train_target_chunk_loader, num_epochs=combination.get("num_epoch", 20))
+            train_time = time.perf_counter()- train_time
+
+            test_SNR=model.measureSNR(test_input_chunk_loader,test_target_chunk_loader)
+
+            writer.add_hparams({k: str(v) for k, v in combination.items()},{"Loss/train":fold_train_loss, "SNR/train":fold_train_SNR, "SNR/test":test_SNR, "train_time":train_time})
+            print(test_SNR , "reached in", train_time,"s")
+
+
+    writer.close()
+    #f = open("gridsearch-{}.txt".format(datetime.datetime.now()), "x") 
+    #
+    # f.write(str(results))
+>>>>>>> 060027db8fb450a7deb2314f3e8b282c740b5892
 
 
 
@@ -83,9 +176,19 @@ if __name__ == "__main__":
     batch_size=32
     
     parameters = {
+<<<<<<< HEAD
         "num_epoch" : [5,10,20], 
         "lr":[4e-3, 1e-3, 5e-4],
         #"model":["U-Net", "Mini_Encoder"]
+=======
+        "num_epoch" : [30], 
+        "lr":[4e-3, 1e-3, 5e-4],
+        "model":[UNet,MiniEncoder],
+        "loss":[nn.MSELoss, nn.L1Loss,nn.HuberLoss],
+        "batch_size":[16,32,64],
+        "channel_number":[48,96, 192],
+        "batch_norm":[True]
+>>>>>>> 060027db8fb450a7deb2314f3e8b282c740b5892
     }
    
     device = torch.device ( "cuda" if torch.cuda.is_available() else "cpu" )
