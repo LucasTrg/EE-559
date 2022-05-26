@@ -38,33 +38,17 @@ class Conv2d(Module):
         ## forward pass of the module
         #print('conv',input.shape)
         self.input = input
-<<<<<<< HEAD
-
-        self.unfolded = unfold(input, kernel_size = self.kernel_size, dilation=self.dilation, padding = self.padding, stride = self.stride)
-        print('conv unfolded ',self.unfolded.shape, self.w.view(self.out_channels, -1).shape)
-
-
-=======
         self.unfolded = unfold(input, kernel_size = self.kernel_size, padding = self.padding, stride = self.stride)
->>>>>>> parent of 985abbb (sync)
         # the convolution is performed as a matrix multiplication after unfolding the input and reshaping the weights
         output = self.w.view(self.out_channels, -1) @ self.unfolded 
         # if bias = true, add the bias after flattening it
         if(self.bias): 
             output.add(self.b.view(1,-1,1)) 
         # compute the output dimensions
-<<<<<<< HEAD
         Hout = (input.shape[2] + 2*self.padding[0] - self.kernel_size[0])//self.stride[0] + 1
         Wout = (input.shape[3] + 2*self.padding[1] - self.kernel_size[1])//self.stride[1] + 1
         # return the output in the output dimensions
         return output.view(input.shape[0], self.out_channels, Hout , Wout)
-=======
-        outDim2 = (input.shape[2] + 2*self.padding[0] - self.kernel_size[0])//self.stride[0] + 1
-        outDim3 = (input.shape[3] + 2*self.padding[1] - self.kernel_size[1])//self.stride[1] + 1
-
-        # return the output after reshaping in the correct dimensions
-        return out.view(input.shape[0], self.out_channels, outDim2 , outDim3)
->>>>>>> parent of 985abbb (sync)
 
     def backward(self, gradwrtoutput):
         ## backward pass of the module
@@ -135,55 +119,6 @@ class TransposeConv2d(Module):
 
         return output
 
-        # insert zeros between the columns and rows the input according to the stride
-        #zeroInsertDim2 = self.stride[0]*input.shape[2] if(self.stride[0]>1)  else input.shape[2]
-        #zeroInsertDim3 = self.stride[1]*input.shape[3] if(self.stride[1]>1)  else input.shape[3]
-        #zeroInsertDim1 = input.shape[1]//self.stride[0]#if we say that the stride is even for 0 and 1 dim
-
-<<<<<<< HEAD
-        #inputZeroInserted = empty(input.shape[0], zeroInsertDim1, zeroInsertDim2, zeroInsertDim3).zero_()
-        #inputZeroInserted[:,:,::self.stride[0], ::self.stride[1]] = self.input[:,::self.stride[0],:,:]
-
-
-        # compute the output dimensions
-        outDim2 = (input.shape[2]-1)*self.stride[0] - 2*self.padding[0] + self.dilation[0]*(self.kernel_size[0] - 1) + 1  
-        outDim3 = (input.shape[3]-1)*self.stride[1]  - 2*self.padding[1] + self.dilation[1]*(self.kernel_size[1] - 1) + 1
-        output_size=[self.input.shape[0],self.out_channels, outDim2, outDim3]
-        print('output size',output_size)
-        
-
-        #L3=(output_size[3]+2*self.padding[3]-self.dilation[3]*(self.kernel_size[3] - 1) -1)/stride[3] + 1
-        #L2=(output_size[2]+2*self.padding[2]-self.dilation[2]*(self.kernel_size[2] - 1) -1)/stride[2] + 1
-
-
-        self.input=self.input.reshape(self.input.shape[0], self.input.shape[1]*self.kernel_size[0]*self.kernel_size[1], -1)
-        print(self.input.shape)
-        print(self.w.shape, self.input.shape)
-
-        
-        print('zero inserted:', self.input.shape,  'wtranspose: ', self.w.view(self.in_channels, -1).t().shape)
-        out = self.w.view(self.out_channels, -1) @ self.input
-        print(out.shape)
-=======
-        # the convolution is performed as a matrix multiplication after unfolding the input and reshaping the weights
-        self.unfolded = unfold(inputZeroInserted, kernel_size = self.kernel_size, padding = self.real_padding)
-        out = self.w.view(self.out_channels, -1) @ self.unfolded
->>>>>>> parent of 985abbb (sync)
-
-        # if bias = true, add the bias after reshaping accordingly
-        if(self.bias):
-            out.add(self.b.view(1,-1,1))
-
-
-        # compute the output dimensions
-        outDim2 = (input.shape[2]-1)*self.stride[0] - 2*self.padding[0] + self.kernel_size[0] 
-        outDim3 = (input.shape[3]-1)*self.stride[1]  - 2*self.padding[1] + self.kernel_size[1]
-
-        # return the output after reshaping in the correct dimensions
-        self.folded=fold(self.input, (outDim2, outDim3), (self.kernel_size[0], self.kernel_size[1]), dilation= self.dilation, padding=self.real_padding, stride = self.stride)
-        print(self.folded.shape)
-        return self.folded
-            #input.shape[0], self.out_channels, outDim2 , outDim3)
 
     def backward(self, gradwrtoutput):
         ## backward pass of the module, analog the forward pass of Conv2D
@@ -215,12 +150,6 @@ class TransposeConv2d(Module):
         else:
             return [(self.w, self.dw)]
 
-
-
-
-
-class Nearest_Upsampling(Module):
-    pass
 
 
 class ReLU(Module):
@@ -277,11 +206,11 @@ class MSE(Module):
         ## forward pass, compute the loss
         self.input = input
         self.target = target
-        return sum((input - target).pow(2).sum(0))/(input.shape[1]*input.shape[2]*input.shape[3])
+        return (input - target).pow(2).sum()/(input.shape[0]*input.shape[1]*input.shape[2]*input.shape[3])
 
     def backward(self):
         ## backward pass, compute the gradient of the loss
-        return 2*(self.input-self.target)/(self.input.shape[1]*self.input.shape[2]*self.input.shape[3])
+        return 2*(self.input-self.target)/(self.input.shape[0]*self.input.shape[1]*self.input.shape[2]*self.input.shape[3])
 
 
 class SGD():
@@ -297,11 +226,7 @@ class SGD():
             val, grad = param
             val.add(-self.eta*grad)
 
-<<<<<<< HEAD
-model = Sequential([Conv2d(3, 25, kernel_size = (2,2), stride = (2,2)), ReLU(), TransposeConv2d(25, 3, kernel_size = (2,2), stride = (2,2)), Sigmoid()])
-=======
 """model = Sequential([Conv2d(3, 25), ReLU(), TransposeConv2d(25, 3), Sigmoid()])
->>>>>>> parent of 985abbb (sync)
 criterion = MSE()
 
 n = 1000
