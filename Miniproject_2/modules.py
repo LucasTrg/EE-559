@@ -11,7 +11,6 @@ class Module(object):
         raise NotImplementedError
 
     def param(self):
-        print('nothing')
         return []
 
 
@@ -30,8 +29,6 @@ class Conv2d(Module):
         self.w = empty(out_channels, in_channels, kernel_size[0], kernel_size[1]).uniform_(-math.sqrt(k), math.sqrt(k))
         self.dw = empty(self.w.shape).zero_()
 
-        self.parameters=[]
-
         # if needed, initiate the bias of the module, the values are sampled from an uniform distribution between -sqrt(k) and sqrt(k)
         if(bias):
             self.b = empty(out_channels).uniform_(-math.sqrt(k), math.sqrt(k))
@@ -39,7 +36,6 @@ class Conv2d(Module):
  
     def forward(self, input):
         ## forward pass of the module
-        #print('conv',input.shape)
         self.input = input
         self.unfolded = unfold(input, kernel_size = self.kernel_size, padding = self.padding, stride = self.stride)
         # the convolution is performed as a matrix multiplication after unfolding the input and reshaping the weights
@@ -67,20 +63,18 @@ class Conv2d(Module):
         
         # Gradient with respect to the input, dx = (dw)'*dy
         gradwrtinput = (self.w.view(self.out_channels, -1).t() @ gradwrtouput_im2col)
+
         #Folded back to 4 dimensions
         grad=fold(gradwrtinput, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
-        #optim=SGD(self.param())
-        #optim.step()
-        if self.bias:
-            self.parameters=[(self.w, self.dw), (self.b, self.db)]
-        else:
-            self.parameters=[(self.w, self.dw)]
         
         return grad
 
     def param(self):
-        print('param conv')
         ## return the parameters values and gradients by pairs
+        if self.bias:
+            self.parameters=[(self.w, self.dw), (self.b, self.db)]
+        else:
+            self.parameters=[(self.w, self.dw)]
         return self.parameters
 
 class TransposeConv2d(Module):
@@ -90,9 +84,6 @@ class TransposeConv2d(Module):
         super().__init__()
         self.kernel_size = kernel_size; self.bias = bias; self.padding = padding; self.stride = stride
         self.in_channels = in_channels; self.out_channels = out_channels
-
-        # compute the "real" padding applied to the input using the padding and kernel size
-        self.real_padding = (kernel_size[0] - padding[0] -1, kernel_size[1] - padding[1] -1)
 
         # compute k for the uniform distribution
         k = 1/(out_channels*kernel_size[0]*kernel_size[1])
@@ -111,6 +102,7 @@ class TransposeConv2d(Module):
     def forward(self, input):
         ## forward pass of the module, analog to the backward pass of Conv2D
         # the input is reshaped to columns for the matrix operations
+        self.input = input
         self.input_im2col = input.view(input.shape[0],input.shape[1],-1)
 
         # compute the output dimensions
@@ -132,7 +124,6 @@ class TransposeConv2d(Module):
 
     def backward(self, gradwrtoutput):
         ## backward pass of the module, analog the forward pass of Conv2D
-
         # Unfold input
         self.unfolded = unfold(gradwrtoutput, kernel_size = self.kernel_size, padding = self.padding, stride = self.stride)
 
@@ -144,28 +135,16 @@ class TransposeConv2d(Module):
         # if bias = true, get the gradient of the bias by summing the gradient to the channels(2nd) dimension
         if(self.bias): 
             self.db = gradwrtoutput.sum((0,2,3))
-            #print('biassssssssssssssss gradddddddddddddddddd',self.db.shape)
 
-        # compute the output dimensions
-        Hout = (gradwrtoutput.shape[2] + 2*self.padding[0] - self.kernel_size[0])//self.stride[0] + 1
-        Wout = (gradwrtoutput.shape[3] + 2*self.padding[1] - self.kernel_size[1])//self.stride[1] + 1
+        # return the gradient with respect to the input after reshaping in the input dimensions 
+        return gradwrtinput.view(gradwrtoutput.shape[0], self.in_channels, self.input.shape[2] , self.input.shape[3])
 
-        grad=gradwrtinput.view(gradwrtoutput.shape[0], self.in_channels, Hout , Wout)
-        #optim=SGD(self.param())
-        #optim.step()
-
+    def param(self):
+        ## return the parameters values and gradients by pairs
         if (self.bias):
             self.parameters=[(self.w, self.dw), (self.b, self.db)]
         else:
             self.parameters=[(self.w, self.dw)]
-         
-
-        # return the gradient with respect to the input after reshaping in the correct dimensions
-        return grad
-
-    def param(self):
-        print('param transpose conv')
-        ## return the parameters values and gradients by pairs
         return self.parameters
 
 
@@ -253,7 +232,7 @@ class SGD():
 """
 model = Sequential([Conv2d(3, 25), ReLU(), TransposeConv2d(25, 3)])
 criterion = MSE()
-optimizer = SGD(model.param())
+optimizer = SGD()
 n = 1000
 center = 0.5
 radius = 1 / math.sqrt((2 * math.pi))
@@ -271,7 +250,5 @@ for i in range(1):
     loss = criterion.forward(output, target_tensor)
     loss_grad = criterion.backward()
     model.backward(loss_grad)
-    print(model.param())
-    optimizer.step()
-    print(model.param())"""
+    optimizer.step(model.param())"""
 
