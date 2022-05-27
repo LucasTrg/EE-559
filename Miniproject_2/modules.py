@@ -55,22 +55,20 @@ class Conv2d(Module):
     def backward(self, gradwrtoutput):
         ## backward pass of the module
         # the gradient of the images is reshaped to 3 dimensions
-        gradwrtouput_im2col = gradwrtoutput.view(gradwrtoutput.shape[0], gradwrtoutput.shape[1], -1)
+        gradwrtouput_reshaped = gradwrtoutput.view(gradwrtoutput.shape[0], gradwrtoutput.shape[1], -1)
 
         #Weight gradient, it is a convolution as well: dw = dy*(dx)', summed in the batch dimension
-        self.dw = (gradwrtouput_im2col @ self.unfolded.transpose(1,2)).sum(0).view(self.dw.shape)
+        self.dw = (gradwrtouput_reshaped @ self.unfolded.transpose(1,2)).sum(0).view(self.dw.shape)
 
         # if bias = true, get the gradient of the bias by summing the gradient to the channels(2nd) dimension
         if(self.bias):
             self.db = gradwrtoutput.sum((0,2,3))
         
         # Gradient with respect to the input, dx = (dw)'*dy
-        gradwrtinput = (self.w.view(self.out_channels, -1).t() @ gradwrtouput_im2col)
+        gradwrtinput_unfolded = (self.w.view(self.out_channels, -1).t() @ gradwrtouput_reshaped)
 
         #Folded back to 4 dimensions
-        grad=fold(gradwrtinput, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
-        
-        return grad
+        return fold(gradwrtinput_unfolded, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
 
     def param(self):
         ## return the parameters values and gradients by pairs
@@ -112,17 +110,17 @@ class TransposeConv2d(Module):
         ## forward pass of the module, analog to the backward pass of Conv2D
         # the input is reshaped to columns for the matrix operations
         self.input = input
-        self.input_im2col = input.view(input.shape[0],input.shape[1],-1)
+        self.input_reshaped = input.view(input.shape[0],input.shape[1],-1)
 
         # compute the output dimensions
         Hout = (input.shape[2]-1)*self.stride[0] - 2*self.padding[0] + self.kernel_size[0]
         Wout = (input.shape[3]-1)*self.stride[1] - 2*self.padding[1] + self.kernel_size[1]
 
         #(w)'*x, transposed convolution as a matrix multiplication
-        wx = (self.w.view(self.in_channels, -1).t()@self.input_im2col)
+        output_unfolded = (self.w.view(self.in_channels, -1).t()@self.input_reshaped)
 
         #Fold back to 4 dimensions
-        output = fold(wx, (Hout, Wout), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
+        output = fold(output_unfolded, (Hout, Wout), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
 
         if(self.bias):
             #add the bias
@@ -136,14 +134,14 @@ class TransposeConv2d(Module):
         # Unfold input
         self.unfolded = unfold(gradwrtoutput, kernel_size = self.kernel_size, padding = self.padding, stride = self.stride)
 
-        # Compute the gradient according to the input: dx = dw*x
-        gradwrtinput = self.w.view(self.in_channels, -1) @ self.unfolded 
-
         #Weight gradient, it is a convolution as well: dw = dy*(dx)', summed in the batch dimension
-        self.dw = (self.input_im2col @ self.unfolded.transpose(1,2)).sum(0).view(self.dw.shape)
+        self.dw = (self.input_reshaped @ self.unfolded.transpose(1,2)).sum(0).view(self.dw.shape)
         # if bias = true, get the gradient of the bias by summing the gradient to the channels(2nd) dimension
         if(self.bias): 
             self.db = gradwrtoutput.sum((0,2,3))
+
+        # Compute the gradient according to the input: dx = dw*x
+        gradwrtinput = self.w.view(self.in_channels, -1) @ self.unfolded 
 
         # return the gradient with respect to the input after reshaping in the input dimensions 
         return gradwrtinput.view(gradwrtoutput.shape[0], self.in_channels, self.input.shape[2] , self.input.shape[3])
@@ -255,7 +253,7 @@ class SGD():
         ## perform a step of the SGD, update parameters according to their gradient
         for param in parameters:
             val, grad = param
-            val+=-self.eta*grad
+            val -= self.eta*grad
 
 """
 model = Sequential([Conv2d(3, 25), ReLU(), TransposeConv2d(25, 3)])
