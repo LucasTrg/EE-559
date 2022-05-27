@@ -1,8 +1,9 @@
-import torch
+from torch import set_grad_enabled, load
+import pickle 
 import modules
 import math
 
-torch.set_grad_enabled(False)
+set_grad_enabled(False)
 
 
 ### For mini - project 2
@@ -11,18 +12,30 @@ class Model () :
     def __init__(self) -> None:
      ## instantiate model + optimizer + loss function + any other stuff you need
 
-     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-     self.model=modules.Sequential([modules.Conv2d(3, 25,kernel_size=(2,2), stride=(2,2)), modules.ReLU(), modules.Conv2d(25, 50, kernel_size=(2,2), stride=(2,2)),
-                                    modules.ReLU(), modules.TransposeConv2d(50, 25,kernel_size=(2,2), stride=(2,2)), modules.ReLU(),
-                                    modules.TransposeConv2d(25, 3, kernel_size=(2,2), stride=(2,2)), modules.Sigmoid()])
+     #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+     self.model=modules.Sequential([modules.Conv2d(3, 10,kernel_size=(2,2), stride=(2,2)), modules.ReLU(), modules.Conv2d(10, 20, kernel_size=(2,2), stride=(2,2)),
+                                    modules.ReLU(), modules.TransposeConv2d(20, 10,kernel_size=(2,2), stride=(2,2)), modules.ReLU(),
+                                    modules.TransposeConv2d(10, 3, kernel_size=(2,2), stride=(2,2)), modules.Sigmoid()])
      self.criterion=modules.MSE()
      self.optimizer=modules.SGD()
+    
 
 
 
-    def load_pretrained_model (self) -> None :
+    def load_pretrained_model (self, path) -> None :
      ## This loads the parameters saved in bestmodel .pth into the model
-     pass
+     model=Model()
+     #model.load(load(path))
+     self.model=model
+     with open(path, 'rb') as f:
+         parameters=pickle.load(f)
+         print(len(parameters))
+     self.model.set_param(parameters)
+     
+
+    
+        
+     
      
 
     def train(self , train_input , train_target , num_epochs ) -> None :
@@ -51,9 +64,14 @@ class Model () :
          train_loss=train_loss/len(train_target)
          SNR=SNR/(train_input.size(0)//batch_size)
         
-         print('epoch : ',epoch, ', loss = ',train_loss)
+         print('epoch : ',epoch, ', loss = ',train_loss , 'PSNR = ', SNR)
+         if (epoch)%10==0:
+                print("Saving checkpoint for the model")
+                #for param in:
+                with open('try_again.pth', 'wb') as f:
+                 pickle.dump( self.model.param(), f)
 
-    def predict(self , test_input ) -> torch.Tensor :
+    def predict(self , test_input ):
      #: test˙input : tensor of size (N1 , C, H, W) with values in range 0 -255 that has to
      # be denoised by the trained or the loaded network .
      # #: returns a tensor of the size (N1 , C, H, W) with values in range 0 -255.
@@ -67,14 +85,23 @@ class Model () :
 
 if __name__=="__main__":
 
-    print("PyTorch version : ",torch.__version__)
-    train_input_dataset , train_target_dataset = torch.load ("train_data.pkl")
-    test_input_dataset , test_target_dataset = torch.load ("val_data.pkl")
+    train_input_data , train_target_data = load ("train_data.pkl")
+    test_input_data , test_target_data = load ("val_data.pkl")
+    #device = torch.device ('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    train_input=train_input_data/255
+    train_target=train_target_data/255
+    test_input=test_input_data/255
+    test_target=test_target_data/255
+    
+
 
     model=Model()
-    model.train(train_input_dataset.float(), train_target_dataset.float(), 10)
-    test_output=model.predict(test_input_dataset.float())
-    PSNR=model.PSNR(test_output, test_target_dataset)
+    model.train(train_input.float(), train_target.float(), 2)
+    test_output=model.predict(test_input.float())
+    PSNR=model.PSNR(test_output, test_target)
+    model.load_pretrained_model('try_again.pth')
     print('PSNR test set = ', PSNR)
     
 
