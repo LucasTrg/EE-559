@@ -42,7 +42,7 @@ class Conv2d(Module):
         output = self.w.view(self.out_channels, -1) @ self.unfolded 
         # if bias = true, add the bias after flattening it
         if(self.bias): 
-            output.add(self.b.view(1,-1,1)) 
+            output += self.b.view(1,-1,1)
         # compute the output dimensions
         Hout = (input.shape[2] + 2*self.padding[0] - self.kernel_size[0])//self.stride[0] + 1
         Wout = (input.shape[3] + 2*self.padding[1] - self.kernel_size[1])//self.stride[1] + 1
@@ -117,7 +117,7 @@ class TransposeConv2d(Module):
 
         if(self.bias):
             #add the bias
-            output.add(self.b.view(1,-1,1,1))
+            output += self.b.view(1,-1,1,1)
 
         return output
 
