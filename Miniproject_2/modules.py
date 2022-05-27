@@ -161,6 +161,17 @@ class TransposeConv2d(Module):
             self.b=new_params[1][0]
             #self.db=new_params[1][1]
 
+class Upsampling(TransposeConv2d):
+    def init(self, in_channels, out_channels, scale_factor=2):
+        if scale_factor!=int(scale_factor):
+            raise ValueError("Scale factor should not be decimal")
+        if scale_factor<1:
+            raise ValueError("Scale factor should be at least 1")
+        
+
+        super().__init__(in_channels, out_channels, kernel_size = (scale_factor,scale_factor),
+                         stride = (scale_factor,scale_factor), padding = (0,0), bias = False)
+
 
 
 class ReLU(Module):
@@ -213,7 +224,6 @@ class Sequential(Module):
         return gradwrtoutput
 
     def param(self):
-        
         param = []
         for module in self.modules:
             param.extend(module.param())
@@ -221,7 +231,7 @@ class Sequential(Module):
 
     def set_param(self, new_params):
         i=0
-        #print('BAAAAAAAAAAAAAAAAAAAA')
+        print('Load the parameters into the module')
 
         for module in self.modules:
             if module.param()!=[]:
@@ -245,7 +255,7 @@ class MSE(Module):
 
 class SGD():
     ### Stochastic Gradient Descent
-    def __init__(self, eta = 1e-4):
+    def __init__(self, eta = 1):
         ## instantiate parameters
         self.eta = eta
 

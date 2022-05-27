@@ -14,7 +14,7 @@ class Model () :
 
      #self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
      self.model=modules.Sequential([modules.Conv2d(3, 10,kernel_size=(2,2), stride=(2,2)), modules.ReLU(), modules.Conv2d(10, 20, kernel_size=(2,2), stride=(2,2)),
-                                    modules.ReLU(), modules.TransposeConv2d(20, 10,kernel_size=(2,2), stride=(2,2)), modules.ReLU(),
+                                    modules.ReLU(), modules.TransposeConv2d(20, 10, kernel_size=(2,2), stride=(2,2)), modules.ReLU(),
                                     modules.TransposeConv2d(10, 3, kernel_size=(2,2), stride=(2,2)), modules.Sigmoid()])
      self.criterion=modules.MSE()
      self.optimizer=modules.SGD()
@@ -24,12 +24,14 @@ class Model () :
 
     def load_pretrained_model (self, path) -> None :
      ## This loads the parameters saved in bestmodel .pth into the model
-     model=Model()
+     model=modules.Sequential([modules.Conv2d(3, 10,kernel_size=(2,2), stride=(2,2)), modules.ReLU(), modules.Conv2d(10, 20, kernel_size=(2,2), stride=(2,2)),
+                                    modules.ReLU(), modules.TransposeConv2d(20, 10,kernel_size=(2,2), stride=(2,2)), modules.ReLU(),
+                                    modules.TransposeConv2d(10, 3, kernel_size=(2,2), stride=(2,2)), modules.Sigmoid()])
      #model.load(load(path))
      self.model=model
      with open(path, 'rb') as f:
          parameters=pickle.load(f)
-         print(len(parameters))
+
      self.model.set_param(parameters)
      
 
@@ -68,7 +70,7 @@ class Model () :
          if (epoch)%10==0:
                 print("Saving checkpoint for the model")
                 #for param in:
-                with open('try_again.pth', 'wb') as f:
+                with open('bestmodel.pth', 'wb') as f:
                  pickle.dump( self.model.param(), f)
 
     def predict(self , test_input ):
@@ -98,10 +100,10 @@ if __name__=="__main__":
 
 
     model=Model()
-    model.train(train_input.float(), train_target.float(), 2)
+    model.train(train_input.float(), train_target.float(), 100)
     test_output=model.predict(test_input.float())
     PSNR=model.PSNR(test_output, test_target)
-    model.load_pretrained_model('try_again.pth')
+    model.load_pretrained_model('bestmodel.pth')
     print('PSNR test set = ', PSNR)
     
 
