@@ -11,7 +11,7 @@ class Module(object):
         raise NotImplementedError
 
     def param(self):
-        print('nothing')
+        #print('nothing')
         return []
 
 
@@ -30,7 +30,6 @@ class Conv2d(Module):
         self.w = empty(out_channels, in_channels, kernel_size[0], kernel_size[1]).uniform_(-math.sqrt(k), math.sqrt(k))
         self.dw = empty(self.w.shape).zero_()
 
-        self.parameters=[]
 
         # if needed, initiate the bias of the module, the values are sampled from an uniform distribution between -sqrt(k) and sqrt(k)
         if(bias):
@@ -71,17 +70,18 @@ class Conv2d(Module):
         grad=fold(gradwrtinput, (self.input.shape[2], self.input.shape[3]), (self.kernel_size[0], self.kernel_size[1]), padding=self.padding, stride = self.stride)
         #optim=SGD(self.param())
         #optim.step()
-        if self.bias:
-            self.parameters=[(self.w, self.dw), (self.b, self.db)]
-        else:
-            self.parameters=[(self.w, self.dw)]
+        
         
         return grad
 
     def param(self):
-        print('param conv')
+        #print('param conv')
         ## return the parameters values and gradients by pairs
-        return self.parameters
+        if self.bias:
+            return [(self.w, self.dw), (self.b, self.db)]
+        else:
+            return [(self.w, self.dw)]
+
 
 class TransposeConv2d(Module):
     ### Transposed convolutional layer, works in the same manner as torch.nn.ConvTranspose2d : https://pytorch.org/docs/stable/generated/torch.nn.ConvTranspose2d.html
@@ -101,7 +101,6 @@ class TransposeConv2d(Module):
         self.w = empty(in_channels, out_channels, kernel_size[0], kernel_size[1]).uniform_(-math.sqrt(k), math.sqrt(k))
         self.dw = empty(self.w.shape).zero_()
 
-        self.parameters=[]
 
         # if needed, initiate the bias of the module, the values are sampled from an uniform distribution between -sqrt(k) and sqrt(k)
         if(bias):
@@ -153,20 +152,19 @@ class TransposeConv2d(Module):
         grad=gradwrtinput.view(gradwrtoutput.shape[0], self.in_channels, Hout , Wout)
         #optim=SGD(self.param())
         #optim.step()
-
-        if (self.bias):
-            self.parameters=[(self.w, self.dw), (self.b, self.db)]
-        else:
-            self.parameters=[(self.w, self.dw)]
          
 
         # return the gradient with respect to the input after reshaping in the correct dimensions
         return grad
 
     def param(self):
-        print('param transpose conv')
+        #print('param transpose conv')
         ## return the parameters values and gradients by pairs
-        return self.parameters
+        if (self.bias):
+            return [(self.w, self.dw), (self.b, self.db)]
+        else:
+            return [(self.w, self.dw)]
+
 
 
 
@@ -240,7 +238,7 @@ class MSE(Module):
 
 class SGD():
     ### Stochastic Gradient Descent
-    def __init__(self, eta = 0.01):
+    def __init__(self, eta = 1e-4):
         ## instantiate parameters
         self.eta = eta
 
