@@ -14,7 +14,7 @@ class Model () :
                                     modules.ReLU(), modules.TransposeConv2d(50, 25,kernel_size=(2,2), stride=(2,2)), modules.ReLU(),
                                     modules.TransposeConv2d(25, 3, kernel_size=(2,2), stride=(2,2)), modules.Sigmoid()])
      self.criterion=modules.MSE()
-     self.optimizer=modules.SGD(self.model.param())
+     self.optimizer=modules.SGD()
 
 
     def load_pretrained_model (self) -> None :
@@ -38,8 +38,7 @@ class Model () :
 
              loss_grad=self.criterion.backward()
              self.model.backward(loss_grad)
-             self.optimizer.step()
-
+             self.optimizer.step(self.model.param())
              #print(loss.item())
              train_loss+=loss.item()
              SNR+=self.PSNR(output, train_target.narrow(0, batch, batch_size))

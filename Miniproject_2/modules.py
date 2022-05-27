@@ -131,7 +131,6 @@ class TransposeConv2d(Module):
 
         #Weight gradient, it is a convolution as well: dw = dy*(dx)', summed in the batch dimension
         self.dw = (self.input_im2col @ self.unfolded.transpose(1,2)).sum(0).view(self.dw.shape)
-
         # if bias = true, get the gradient of the bias by summing the gradient to the channels(2nd) dimension
         if(self.bias): 
             self.db = gradwrtoutput.sum((0,2,3))
@@ -199,6 +198,12 @@ class Sequential(Module):
             gradwrtoutput = module.backward(gradwrtoutput)
         return gradwrtoutput
 
+    def param(self):
+        param = []
+        for module in self.modules:
+            param.extend(module.param())
+        return param
+
 
 class MSE(Module):
     ### Mean Squared Error loss function 
@@ -215,20 +220,20 @@ class MSE(Module):
 
 class SGD():
     ### Stochastic Gradient Descent
-    def __init__(self, param, eta = 0.01):
+    def __init__(self, eta = 0.01):
         ## instantiate parameters
-        self.param = param
         self.eta = eta
 
-    def step(self):
+    def step(self, parameters):
         ## perform a step of the SGD, update parameters according to their gradient
-        for param in self.param:
+        for param in parameters:
             val, grad = param
-            val.add(-self.eta*grad)
+            val.add_(-self.eta*grad)
 
-"""model = Sequential([Conv2d(3, 25), ReLU(), TransposeConv2d(25, 3), Sigmoid()])
+"""
+model = Sequential([Conv2d(3, 25), ReLU(), TransposeConv2d(25, 3)])
 criterion = MSE()
-
+optimizer = SGD(model.param())
 n = 1000
 center = 0.5
 radius = 1 / math.sqrt((2 * math.pi))
@@ -240,12 +245,13 @@ temp_tensor = random_tensor.sub(center).pow(2)
 target_tensor = empty(temp_tensor.shape).zero_()
 target_tensor = target_tensor.where(temp_tensor < radius_sq, empty(temp_tensor.shape).zero_()+1)
 
+for i in range(1):
+    output = model.forward(random_tensor)
+                
+    loss = criterion.forward(output, target_tensor)
+    loss_grad = criterion.backward()
+    model.backward(loss_grad)
+    print(model.param())
+    optimizer.step()
+    print(model.param())"""
 
-output = model.forward(random_tensor)
-            
-loss = criterion.forward(output, target_tensor)
-
-loss_grad = criterion.backward()
-model.backward(loss_grad)
-optimizer = SGD(model.param())
-optimizer.step()"""
