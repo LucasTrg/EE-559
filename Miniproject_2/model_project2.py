@@ -2,6 +2,8 @@ import torch
 import modules
 import math
 
+torch.set_grad_enabled(False)
+
 
 ### For mini - project 2
 class Model () :
@@ -14,7 +16,9 @@ class Model () :
                                     modules.ReLU(), modules.TransposeConv2d(50, 25,kernel_size=(2,2), stride=(2,2)), modules.ReLU(),
                                     modules.TransposeConv2d(25, 3, kernel_size=(2,2), stride=(2,2)), modules.Sigmoid()])
      self.criterion=modules.MSE()
+     #print(self.model.param()) #returns []
      self.optimizer=modules.SGD(self.model.param())
+
 
 
     def load_pretrained_model (self) -> None :
@@ -34,11 +38,17 @@ class Model () :
 
          for batch in range(0, train_input.shape[0], batch_size):
              output=self.model.forward(train_input.narrow(0, batch, batch_size))
+
+             #print('param after output :',self.model.param())
              loss=self.criterion.forward(output, train_target.narrow(0, batch, batch_size))
 
              loss_grad=self.criterion.backward()
              self.model.backward(loss_grad)
+
+             #self.optimizer=modules.SGD(self.model.param())
+             #print('param:',len(self.model.param()))
              self.optimizer.step()
+             #print('param:',len(self.model.param()))
 
              #print(loss.item())
              train_loss+=loss.item()
@@ -68,7 +78,7 @@ if __name__=="__main__":
     test_input_dataset , test_target_dataset = torch.load ("val_data.pkl")
 
     model=Model()
-    model.train(train_input_dataset.float(), train_target_dataset.float(), 20)
+    model.train(train_input_dataset.float(), train_target_dataset.float(), 10)
     test_output=model.predict(test_input_dataset.float())
     PSNR=model.PSNR(test_output, test_target_dataset)
     print('PSNR test set = ', PSNR)
